@@ -1,0 +1,12 @@
+{
+  "editor.formatOnSave": true,
+  "[rust]": {
+    "editor.defaultFormatter": "rust-lang.rust-analyzer",
+    "editor.formatOnSave": true
+  },
+  "rust-analyzer.linkedProjects": [
+    "./yak-core/Cargo.toml",
+    "./yak-core/Cargo.toml"
+  ],
+  "rust-analyzer.showUnlinkedFileNotification": false
+}
