@@ -4,6 +4,6 @@ members = [
     "./yak-ast",
     "./yak-cli",
     "./yak-core",
-    "./yak-ir",
+    "./yak-llvm",
     "./yak-lexer",
 ]

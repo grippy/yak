@@ -4,9 +4,9 @@
     "editor.defaultFormatter": "rust-lang.rust-analyzer",
     "editor.formatOnSave": true
   },
-  "rust-analyzer.linkedProjects": [
-    "./yak-core/Cargo.toml",
-    "./yak-core/Cargo.toml"
-  ],
+  // "[toml]": {
+  //   "editor.defaultFormatter": "tamasfe.even-better-toml",
+  //   "editor.formatOnSave": true
+  // },
   "rust-analyzer.showUnlinkedFileNotification": false
 }
