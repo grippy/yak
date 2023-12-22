@@ -5,9 +5,9 @@ use std::collections::HashMap;
 pub struct YakPackage {
     package_id: String,
     package_path: String,
+    package_version: YakVersion,
     description: String,
     yak_version: YakVersion,
-    version: YakVersion,
     files: Vec<YakFile>,
     features: HashMap<String, YakFeature>,
     dependencies: Vec<YakDependency>,
@@ -54,6 +54,6 @@ pub struct YakExport {
 pub struct YakSymbol {
     // identity: Type, ^Trait, :fn, const, etc.
     id: String,
-    // `as` renames the import type
+    // `as` renames the import/export type
     as_: Option<String>,
 }

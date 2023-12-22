@@ -31,6 +31,8 @@ const NUMBER_PATTERN: &str = r"^[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)$";
 
 // Identity patterns
 const PACKAGE_PATTERN: &str = r"^[a-z]([a-z0-9_]*(\.{1}[a-z0-9_]+)*)";
+
+// TODO: all of these can have an optional package identity prefix
 const TYPE_PATTERN: &str = r"^([A-Z]([a-zA-Z0-9_])*?)$";
 const TRAIT_PATTERN: &str = r"^(\^[A-Z]([a-zA-Z0-9_])*?)$";
 const VAR_PATTERN: &str = r"^([a-z_]([a-zA-Z0-9_])*?)$";
@@ -68,34 +70,45 @@ impl PatternMatcher {
     }
 
     fn resolve(&self, this: &str) -> Option<TokenType> {
+        // Comment
         // example: # this a comment
         if self.comment_id.is_match(this) {
             return Some(TokenType::Comment(this.to_owned()));
         }
 
+        // Variable
         // example: _mything1IsGood_123
         if self.var_id.is_match(&this) {
             return Some(TokenType::IdVar(this.to_owned()));
         }
+
+        // Package
         // package is a subset of variable
         // single-word packages will resolve as Token::VarId
         // example: my.package.rules
         if self.package_id.is_match(&this) {
             return Some(TokenType::IdPackage(this.to_owned()));
         }
+
+        // Function
         // example: :func1
         if self.func_id.is_match(&this) {
             return Some(TokenType::IdFunc(this.to_owned()));
         }
-        // example: MyType_1
-        if self.type_id.is_match(&this) {
-            return Some(TokenType::IdType(this.to_owned()));
-        }
+
+        // Trait
         // example: ^MyType_1
         if self.trait_id.is_match(&this) {
             return Some(TokenType::IdTrait(this.to_owned()));
         }
 
+        // Type
+        // example: MyType_1
+        if self.type_id.is_match(&this) {
+            return Some(TokenType::IdType(this.to_owned()));
+        }
+
+        // Number
         // example: .1 1 100 -100
         if self.num_literal.is_match(&this) {
             return Some(TokenType::LitNumber(this.to_owned()));
@@ -1185,7 +1198,7 @@ impl<'a> Lexer<'a> {
             "Self" => self.push_token(TokenType::BuiltInTypeSelf, pos, line, col),
             "Set" => self.push_token(TokenType::BuiltInTypeSet, pos, line, col),
 
-            // "" =>Token::),
+            // "" => Token::,
             _ => {
                 if !flush {
                     return;

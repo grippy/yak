@@ -1,9 +1,11 @@
 [workspace]
 resolver = "2"
 members = [
+    "./llvm-example",
     "./yak-ast",
     "./yak-cli",
     "./yak-core",
     "./yak-llvm",
     "./yak-lexer",
+    "./yak-std",
 ]

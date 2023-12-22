@@ -1,11 +1,9 @@
 [package]
-name = "yak-ast"
-version = "0.0.0"
+name = "llvm-example"
+version = "0.1.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-anyhow = { version = "1.0" }
-log = { version = "0.4.20" }
-yak-lexer = { path = "../yak-lexer" }
+inkwell = { git = "https://github.com/TheDan64/inkwell", tag = "0.2.0", features = ["llvm14-0"] }

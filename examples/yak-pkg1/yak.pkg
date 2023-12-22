@@ -1,0 +1,5 @@
+package "yak.pkg1"
+description "An example package to test if this works or not"
+files {
+  "./const.yak"
+}

@@ -3,6 +3,11 @@ name = "yak-cli"
 version = "0.1.0"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
+pretty_env_logger = { version = "0.5.0" }
+log = { version = "0.4.20" }
+anyhow = { version = "1.0" }
+clap = { version = "4.4.11", features = ["derive", "env"] }
+yak-ast = { path = "../yak-ast" }
+yak-core = { path = "../yak-core" }
+yak-lexer = { path = "../yak-lexer" }

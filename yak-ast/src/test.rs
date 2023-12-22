@@ -12,6 +12,50 @@ use yak_lexer::Lexer;
 #[cfg(test)]
 use yak_lexer::Token;
 
+#[test]
+fn test_package() {
+    let src = "
+package     \"my.pkg\"
+description \"This is my description\"
+version     \"1.0.0\"
+dependencies {
+    local.pkg1 \"http://github.com/yak-pkg/my.pkg\"
+    pkg1       \"http://github.com/yak-pkg/pkg1@v1\"
+    some.pkg2  \"http://github.com/yak-pkg/some-pkg2@v1\"
+}
+files {
+  \"./file1.yak\"
+  \"./file2.yak\"
+  \"./file3.yak\"
+}
+import {
+  some.pkg1 {
+    :func1
+    :func1 as :func_other
+    const_var1
+    const_var1 as const_var2
+    Type1
+    Type2 as TypeOther
+    ^Trait1
+    ^Trait2 as ^TraitOther
+  }
+}
+export {
+  :func1
+  const_var1
+  Struct1
+  Enum1
+  ^Trait1
+}
+";
+    // pkg1
+    // other.pkg1 as other.pkg2
+
+    let mut ast = Ast::from_source(src);
+    let _ = ast.parse_package_stmt();
+    println!("{:?}", ast);
+}
+
 #[cfg(test)]
 fn pratt_parser(src: &str) -> Result<Expr, PrattError<Token, NoError>> {
     let mut lexer = Lexer::from_source(src);
@@ -74,7 +118,7 @@ fn test_var_complex_generic() {
 fn test_var_basic_string() {
     let src = "const x = \"123\"";
     let mut ast = Ast::from_source(src);
-    ast.parse();
+    let _ = ast.parse_stmts();
 
     let expected = &ConstStmt {
         assign: AssignStmt {
@@ -112,7 +156,7 @@ fn test_var_basic_int() {
         },
     };
     let mut ast = Ast::from_source(src);
-    ast.parse();
+    let _ = ast.parse_stmts();
     assert_eq!(ast.parsed.errors.len(), 0);
     assert_eq!(ast.parsed.constants.get(0), Some(expected));
 }
@@ -142,7 +186,7 @@ fn test_var_basic_uint() {
         },
     };
     let mut ast = Ast::from_source(src.as_str());
-    ast.parse();
+    let _ = ast.parse_stmts();
     assert_eq!(ast.parsed.errors.len(), 0);
     assert_eq!(ast.parsed.constants.get(0), Some(expected));
 }
@@ -165,7 +209,7 @@ fn test_var_basic_float() {
         },
     };
     let mut ast = Ast::from_source(src);
-    ast.parse();
+    let _ = ast.parse_stmts();
     assert_eq!(ast.parsed.errors.len(), 0);
     assert_eq!(ast.parsed.constants.get(0), Some(expected));
 }
@@ -195,7 +239,7 @@ fn test_var_basic_boolean() {
         },
     };
     let mut ast = Ast::from_source(src);
-    ast.parse();
+    let _ = ast.parse_stmts();
     assert_eq!(ast.parsed.errors.len(), 0);
     assert_eq!(ast.parsed.constants.get(0), Some(expected));
 }
@@ -265,7 +309,7 @@ const struct_var =
     };
 
     let mut ast = Ast::from_source(src);
-    ast.parse();
+    let _ = ast.parse_stmts();
     assert_eq!(ast.parsed.errors.len(), 0);
     assert_eq!(ast.parsed.constants.get(0), Some(expected));
 }
@@ -368,7 +412,7 @@ const struct_var =
     };
 
     let mut ast = Ast::from_source(src.as_str());
-    ast.parse();
+    let _ = ast.parse_stmts();
 
     assert_eq!(ast.parsed.errors.len(), 0);
     assert_eq!(ast.parsed.constants.get(0), Some(expected));
@@ -411,7 +455,7 @@ const struct_var =
     };
 
     let mut ast = Ast::from_source(src);
-    ast.parse();
+    let _ = ast.parse_stmts();
 
     assert_eq!(ast.parsed.errors.len(), 0);
     assert_eq!(ast.parsed.constants.get(0), Some(expected));
@@ -448,7 +492,7 @@ enum MyEnum
   V5
 ";
     let mut ast = Ast::from_source(src);
-    ast.parse();
+    let _ = ast.parse_stmts();
 }
 
 #[test]
@@ -478,7 +522,7 @@ struct MyStruct[X]
         }],
     };
     let mut ast = Ast::from_source(src);
-    ast.parse();
+    let _ = ast.parse_stmts();
     assert_eq!(ast.parsed.errors.len(), 0);
     assert_eq!(ast.parsed.structs.get(0), Some(expected));
 }

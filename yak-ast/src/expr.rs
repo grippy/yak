@@ -1,11 +1,11 @@
-use crate::pratt::{Affix, Associativity, NoError, PrattError, PrattParser, Precedence, Result};
+use crate::pratt::{Affix, Associativity, NoError, PrattParser, Precedence, Result};
 
 use yak_lexer::token::TokenType as Ty;
 use yak_lexer::Token;
 
 use crate::{
-    ArithOp, Balance, BinaryExprStmt, BitwiseOp, BooleanOp, Expr, FuncValueStmt, LogicalOp, Op,
-    Parse, StructValueStmt, UnaryExprStmt, UnaryOp, Value, ValueStmt,
+    ArithOp, Balance, BinaryExprStmt, BitwiseOp, BooleanOp, Expr, LogicalOp, Op, Parse,
+    StructValueStmt, UnaryExprStmt, UnaryOp, Value, ValueStmt,
 };
 
 // 0  non-binding operators

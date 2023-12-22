@@ -18,30 +18,30 @@ impl Default for YakHome {
 
 impl YakHome {
     fn get_home_dir(&self) -> PathBuf {
-        PathBuf::from_iter([&self.env.home].iter())
+        PathBuf::from_iter([&self.env.yak_home].iter())
     }
     fn get_home_version_dir(&self) -> PathBuf {
-        PathBuf::from_iter([&self.env.home, "yak", &self.version_path_part()].iter())
+        PathBuf::from_iter([&self.env.yak_home, "yak", &self.version_path_part()].iter())
     }
     fn get_home_version_bin_dir(&self) -> PathBuf {
-        PathBuf::from_iter([&self.env.home, "yak", &self.version_path_part(), "bin"].iter())
+        PathBuf::from_iter([&self.env.yak_home, "yak", &self.version_path_part(), "bin"].iter())
     }
     fn get_home_version_pkg_dir(&self) -> PathBuf {
-        PathBuf::from_iter([&self.env.home, "yak", &self.version_path_part(), "pkg"].iter())
+        PathBuf::from_iter([&self.env.yak_home, "yak", &self.version_path_part(), "pkg"].iter())
     }
     fn get_home_version_src_dir(&self) -> PathBuf {
-        PathBuf::from_iter([&self.env.home, "yak", &self.version_path_part(), "src"].iter())
+        PathBuf::from_iter([&self.env.yak_home, "yak", &self.version_path_part(), "src"].iter())
     }
     // prefix v to the version part
     fn version_path_part(&self) -> String {
-        format!("v{}", &self.env.version)
+        format!("v{}", &self.env.yak_version)
     }
     // generate a list of paths to create for the YAK_HOME directory
     fn paths(&self) -> Vec<PathBuf> {
         let mut paths = vec![self.get_home_dir()];
         // We might not have a yak version enabled
         // so skip creating these paths
-        if self.env.version != "0.0.0" {
+        if self.env.yak_version != "0.0.0" {
             paths.append(&mut vec![
                 self.get_home_version_dir(),
                 self.get_home_version_bin_dir(),
@@ -74,7 +74,7 @@ mod tests {
     use super::*;
     use std::time::SystemTime;
 
-    fn get_epoch() -> u128 {
+    fn _get_epoch() -> u128 {
         match SystemTime::now().duration_since(SystemTime::UNIX_EPOCH) {
             Ok(n) => n.as_millis(),
             Err(_) => panic!("unable to get epoch: SystemTime before UNIX EPOCH!"),

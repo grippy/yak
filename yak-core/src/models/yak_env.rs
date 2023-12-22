@@ -18,15 +18,21 @@ fn normalize_version(mut ver: String) -> String {
 
 #[derive(Debug)]
 pub struct YakEnv {
-    pub home: String,
-    pub version: String,
+    pub yak_home: String,
+    pub yak_version: String,
 }
 
 impl Default for YakEnv {
     fn default() -> Self {
         YakEnv {
-            home: get("YAK_HOME", "~/.yak"),
-            version: normalize_version(get("YAK_VERSION", "0.0.0")),
+            yak_home: get("YAK_HOME", "~/.yak"),
+            yak_version: normalize_version(get("YAK_VERSION", "0.0.0")),
         }
+    }
+}
+
+impl YakEnv {
+    pub fn cwd(&self) -> Result<std::path::PathBuf, std::io::Error> {
+        env::current_dir()
     }
 }

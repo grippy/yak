@@ -1,8 +1,2 @@
-// models
-//  - YakPackage
-//  - YakDependencyGraph
-//  - YakHome
-//  - YakVersion
-//  - YakWorkspace
-
+#[allow(dead_code)]
 pub mod models;

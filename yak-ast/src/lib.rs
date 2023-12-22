@@ -5,18 +5,20 @@ mod pratt;
 
 mod test;
 
+use anyhow::{bail, Context, Error, Result};
+use expr::ExprParser;
+use log::{error, info};
+use pratt::PrattParser;
+use std::fs;
+// use std::io::{Error, ErrorKind};
+use std::path::PathBuf;
+use std::process::Output;
 use yak_lexer::token::TokenType as Ty;
 use yak_lexer::{Lexer, Token};
 
-use std::io::{Error, ErrorKind};
-use std::path::PathBuf;
-
-use expr::ExprParser;
-use pratt::PrattParser;
-
-fn err(msg: &str) -> Error {
-    Error::new(ErrorKind::InvalidInput, msg)
-}
+// fn err(msg: &str) -> Error {
+//     Error::new(ErrorKind::InvalidInput, msg)
+// }
 
 #[derive(Debug, Clone, Default)]
 struct Balance {
@@ -50,6 +52,7 @@ impl Balance {
 
 #[derive(Debug, Default)]
 pub struct Parsed {
+    package: Option<PackageStmt>,
     constants: Vec<ConstStmt>,
     enums: Vec<EnumStmt>,
     errors: Vec<Error>,
@@ -63,21 +66,56 @@ pub struct Parsed {
 
 #[derive(Debug)]
 pub struct Ast {
+    file: Option<PathBuf>,
     stack: Vec<Token>,
     pub parsed: Parsed,
 }
 
 impl Ast {
-    fn from_source(source: &str) -> Self {
+    pub fn from_files(files: Vec<PathBuf>) -> Result<Vec<Self>> {
+        let mut out: Vec<Ast> = vec![];
+        for file in files {
+            out.push(Ast::from_file(file)?);
+        }
+        Ok(out)
+    }
+    pub fn from_file(file: PathBuf) -> Result<Self> {
+        let src = fs::read_to_string(&file)
+            .with_context(|| format!("unable to read file: {}", &file.display()))?;
+        let mut lexer = Lexer::from_source(&src);
+        lexer.parse();
+        Ok(Ast {
+            file: Some(file),
+            stack: lexer.tokens_as_stack(),
+            parsed: Parsed::default(),
+        })
+    }
+    pub fn from_source(source: &str) -> Self {
         let mut lexer = Lexer::from_source(source);
         lexer.parse();
         Ast {
+            file: None,
             stack: lexer.tokens_as_stack(),
             parsed: Parsed::default(),
         }
     }
-    fn parse(&mut self) {
-        // parse top-level rules
+
+    pub fn parse_package_stmt(&mut self) -> Result<()> {
+        match PackageStmt::parse(&mut self.stack) {
+            Ok(stmt) => self.parsed.package = Some(stmt),
+            Err(err) => self.parsed.errors.push(err),
+        };
+        if self.parsed.errors.len() > 0 {
+            for err in self.parsed.errors.iter() {
+                error!("parser error: {}", &err);
+            }
+            bail!("fix these errors");
+        }
+        Ok(())
+    }
+
+    pub fn parse_stmts(&mut self) -> Result<()> {
+        // parse top-level statements
         while let Some(token) = self.stack.pop() {
             // println!("ast.parse {:?}", token.ty);
             match token.ty {
@@ -85,20 +123,29 @@ impl Ast {
                 Ty::Comment(_) => {}
                 Ty::Indent(indent) => {
                     if indent > 0 {
-                        panic!("top-level indentation not allowed");
+                        bail!("syntax error: top-level indentation not allowed");
                     }
-                    match self.top_level() {
+                    match self.top_level_stmts() {
                         Some(err) => self.parsed.errors.push(err),
                         _ => {}
                     }
                 }
                 _ => {
-                    println!("toplevel failed to parse: {:?}", token);
+                    bail!("failed to parse token: {:?}", token);
                 }
             }
         }
+
+        if self.parsed.errors.len() > 0 {
+            for err in self.parsed.errors.iter() {
+                error!("parser error: {}", &err);
+            }
+            bail!("fix these errors");
+        }
+        Ok(())
     }
-    fn top_level(&mut self) -> Option<Error> {
+
+    fn top_level_stmts(&mut self) -> Option<Error> {
         // current token is indent=0
         while let Some(token) = self.stack.pop() {
             // matching any of these on the top-level
@@ -112,21 +159,14 @@ impl Ast {
                 }
                 Ty::KwConst
                 | Ty::KwEnum
-                | Ty::KwStruct
+                | Ty::KwFn
                 | Ty::KwImpl
+                | Ty::KwLet
+                | Ty::KwStruct
                 | Ty::KwTest
                 | Ty::KwTestCase
                 | Ty::KwTrait
-                | Ty::KwFn
-                | Ty::KwType
-                // Package definitions
-                | Ty::KwPackage
-                | Ty::KwDescription
-                | Ty::KwVersion
-                | Ty::KwDependencies
-                | Ty::KwExport
-                | Ty::KwImport
-                | Ty::KwFiles => {
+                | Ty::KwType => {
                     let mut stack = self.take_toplevel_stmt();
                     match token.ty {
                         Ty::KwConst => {
@@ -135,8 +175,8 @@ impl Ast {
                                 Ok(const_stmt) => {
                                     println!("const_stmt {:#?}", const_stmt);
                                     self.parsed.constants.push(const_stmt);
-                                },
-                                Err(err) => return Some(err)
+                                }
+                                Err(err) => return Some(err),
                             }
                         }
                         Ty::KwEnum => {
@@ -145,15 +185,15 @@ impl Ast {
                                 Ok(enum_stmt) => {
                                     println!("enum_stmt {:#?}", enum_stmt);
                                     self.parsed.enums.push(enum_stmt);
-                                },
-                                Err(err) => return Some(err)
+                                }
+                                Err(err) => return Some(err),
                             }
                         }
                         Ty::KwFn => {
-                            todo!()
+                            todo!("parse fn")
                         }
                         Ty::KwImpl => {
-                            todo!()
+                            todo!("parse impl")
                         }
                         Ty::KwLet => {
                             let stmt = LetStmt::parse(&mut stack);
@@ -161,8 +201,8 @@ impl Ast {
                                 Ok(let_stmt) => {
                                     println!("let_stmt {:#?}", let_stmt);
                                     self.parsed.lets.push(let_stmt);
-                                },
-                                Err(err) => return Some(err)
+                                }
+                                Err(err) => return Some(err),
                             }
                         }
                         Ty::KwStruct => {
@@ -171,45 +211,21 @@ impl Ast {
                                 Ok(struct_stmt) => {
                                     println!("struct_stmt {:#?}", struct_stmt);
                                     self.parsed.structs.push(struct_stmt);
-                                },
-                                Err(err) => return Some(err)
+                                }
+                                Err(err) => return Some(err),
                             }
                         }
                         Ty::KwTest => {
-                            todo!()
+                            todo!("parse test")
                         }
                         Ty::KwTestCase => {
-                            todo!()
+                            todo!("parse testcase")
                         }
                         Ty::KwTrait => {
-                            todo!()
+                            todo!("parse ^Trait")
                         }
                         Ty::KwType => {
-                            todo!()
-                        }
-                        //
-                        // Package keywords
-                        //
-                        Ty::KwPackage => {
-                            todo!()
-                        }
-                        Ty::KwDescription => {
-                            todo!()
-                        }
-                        Ty::KwVersion => {
-                            todo!()
-                        }
-                        Ty::KwDependencies => {
-                            todo!()
-                        }
-                        Ty::KwExport => {
-                            todo!()
-                        }
-                        Ty::KwImport => {
-                            todo!()
-                        }
-                        Ty::KwFiles => {
-                            todo!()
+                            todo!("parse type")
                         }
                         _ => {}
                     }
@@ -258,54 +274,73 @@ fn take_all_until_match_any(tokens: &mut Vec<Token>, matches: Vec<Ty>) -> Vec<To
     taken
 }
 
-fn take_all_include_pattern(
-    tokens: &mut Vec<Token>,
-    pattern: Vec<Ty>,
-) -> Result<Vec<Token>, Error> {
+fn take_all_include_pattern(tokens: &mut Vec<Token>, pattern: Vec<Ty>) -> Result<Vec<Token>> {
     if pattern.len() == 0 {
-        return Err(err("expected pattern length"));
+        bail!("expected pattern length");
     }
 
     let mut pattern_iter = pattern.clone().into_iter();
+    // println!("checking for pattern: {:?}", &pattern_iter);
+
     let pattern_ty = pattern_iter.next().unwrap();
     let mut taken: Vec<Token> = vec![];
-    // let mut buf: Vec<Token> = vec![];
-    // buf.push(tok);
 
     while let Some(tok) = tokens.pop() {
+        // println!("> tok: {:?} pattern: {:?}", &tok.ty, &pattern_ty);
         if &tok.ty == &pattern_ty {
             taken.push(tok);
-
             while let Some(pattern_next_ty) = pattern_iter.next() {
                 if tokens.len() > 0 {
                     let next = tokens.pop().unwrap();
+                    // println!(
+                    //     ">> next: {:?} pattern_next: {:?}",
+                    //     &next.ty, &pattern_next_ty
+                    // );
                     if &next.ty == &pattern_next_ty {
                         taken.push(next);
                     } else {
                         // incomplete: reset pattern
                         pattern_iter = pattern.clone().into_iter();
-                        taken.push(next);
+                        // account for the top-level already has a placeholder
+                        // for the first token stored in pattern_ty
+                        pattern_iter.next();
+                        tokens.push(next);
                         break;
                     }
                 }
             }
-
             if pattern_iter.len() == 0 {
                 break;
             }
         } else {
+            // this didn't match so take
             taken.push(tok);
         }
     }
+
     taken.reverse();
     Ok(taken)
 }
 
-fn remove_newline_and_indent(tokens: &mut Vec<Token>) -> Result<Vec<Token>, Error> {
+fn remove_newline_indent(tokens: &mut Vec<Token>) -> Result<Vec<Token>, Error> {
     let mut cleaned: Vec<Token> = vec![];
     while let Some(tok) = tokens.pop() {
         match tok.ty {
             Ty::Indent(_) | Ty::NL => {}
+            _ => {
+                cleaned.push(tok);
+            }
+        }
+    }
+    cleaned.reverse();
+    Ok(cleaned)
+}
+
+fn remove_newline_indent_space(tokens: &mut Vec<Token>) -> Result<Vec<Token>, Error> {
+    let mut cleaned: Vec<Token> = vec![];
+    while let Some(tok) = tokens.pop() {
+        match tok.ty {
+            Ty::Indent(_) | Ty::NL | Ty::Sp => {}
             _ => {
                 cleaned.push(tok);
             }
@@ -339,11 +374,7 @@ fn ty_into_op(ty: Ty) -> Result<Op, Error> {
         Ty::OpLogicalOr => Op::Logical(LogicalOp::Or),
         Ty::OpBitwiseAnd => Op::Bitwise(BitwiseOp::And),
         Ty::OpBitwiseOr => Op::Bitwise(BitwiseOp::Or),
-        _ => {
-            return Err(err(
-                "Expected operator (assign, boolean, arithmetic, logical, or bitwise",
-            ))
-        }
+        _ => bail!("Expected operator (assign, boolean, arithmetic, logical, or bitwise",),
     };
     return Ok(op);
 }
@@ -370,7 +401,7 @@ fn into_type_stmt_generics(stack: &mut Vec<Token>) -> Result<Vec<TypeStmt>, Erro
                     type_stmt.type_name = tok.ty.into();
                 } else {
                     println!("failed on: {:?}", tok);
-                    return Err(err("type statement inner generic expected a type identity"));
+                    bail!("type statement inner generic expected a type identity");
                 }
             }
         }
@@ -393,9 +424,9 @@ fn into_type_stmt_generics(stack: &mut Vec<Token>) -> Result<Vec<TypeStmt>, Erro
                 if balance.balanced_brackets() {
                     type_stmt.generics = Some(Box::new(into_type_stmt_generics(stack)?));
                 } else {
-                    return Err(err(
+                    bail!(
                         "unable to parse type statement inner generic: expected balanced brackets",
-                    ));
+                    );
                 }
             } else {
                 stack.push(tok)
@@ -516,7 +547,7 @@ impl Parse for VarTypeStmt {
             }
         }
 
-        return Err(err("expected to find VarTypeStmt"));
+        bail!("expected to find VarTypeStmt");
     }
 
     fn validate(&self) -> Result<(), Error> {
@@ -537,7 +568,7 @@ impl Parse for TypeStmt {
     fn parse(stack: &mut Vec<Token>) -> Result<Self, Error> {
         println!("parse type_stmt {:?}", stack);
         if stack.len() == 0 {
-            return Err(err("type statement has no tokens"));
+            bail!("type statement has no tokens");
         }
         let mut type_stmt = Self::default();
 
@@ -555,7 +586,7 @@ impl Parse for TypeStmt {
                         return Ok(type_stmt);
                     } else {
                         println!("failed on: {:?}", tok);
-                        return Err(err("type statement expected a type identity"));
+                        bail!("type statement expected a type identity");
                     }
                 }
             }
@@ -601,9 +632,7 @@ impl Parse for TypeStmt {
                 inner.remove(0);
                 type_stmt.generics = Some(Box::new(into_type_stmt_generics(&mut inner)?));
             } else {
-                return Err(err(
-                    "unable to parse type statement inner generic: expected balanced brackets",
-                ));
+                bail!("unable to parse type statement inner generic: expected balanced brackets",);
             }
         }
 
@@ -629,7 +658,7 @@ impl Parse for EnumStmt {
         println!("EnumStmt {:?}", stack);
 
         if stack.len() == 0 {
-            return Err(err("type statement has no tokens"));
+            bail!("type statement has no tokens");
         }
         let mut enum_stmt = Self::default();
 
@@ -639,7 +668,7 @@ impl Parse for EnumStmt {
                     enum_stmt.enum_name = id;
                 }
                 _ => {
-                    return Err(err("enum statement expected a type identity"));
+                    bail!("enum statement expected a type identity");
                 }
             }
         }
@@ -648,7 +677,7 @@ impl Parse for EnumStmt {
             match tok.ty {
                 Ty::NL => {}
                 _ => {
-                    return Err(err("enum statement expected a newline after identity"));
+                    bail!("enum statement expected a newline after identity");
                 }
             }
         }
@@ -683,7 +712,7 @@ impl Parse for EnumStmt {
                 match tok.ty {
                     Ty::NL => {}
                     _ => {
-                        return Err(err("enum statement expected enum variant"));
+                        bail!("enum statement expected enum variant");
                     }
                 }
             }
@@ -721,7 +750,7 @@ struct EnumVariantStmt {
 impl Parse for EnumVariantStmt {
     fn parse(mut stack: &mut Vec<Token>) -> Result<Self, Error> {
         // remove all ident + NL
-        let mut cleaned: Vec<Token> = remove_newline_and_indent(&mut stack)?;
+        let mut cleaned: Vec<Token> = remove_newline_indent(&mut stack)?;
         println!("EnumVariantStmt {:?} (cleaned)", cleaned);
         let mut enum_variant = EnumVariantStmt::default();
 
@@ -731,11 +760,11 @@ impl Parse for EnumVariantStmt {
                     enum_variant.variant_name = name;
                 }
                 _ => {
-                    return Err(err("enum variant statement expected indent"));
+                    bail!("enum variant statement expected indent");
                 }
             }
         } else {
-            return Err(err("enum variant statement expected indent"));
+            bail!("enum variant statement expected indent");
         }
 
         if let Some(tok) = cleaned.pop() {
@@ -752,11 +781,11 @@ impl Parse for EnumVariantStmt {
                                 cleaned.reverse();
                             }
                             _ => {
-                                return Err(err("enum variant statement expected closing brace"));
+                                bail!("enum variant statement expected closing brace");
                             }
                         },
                         _ => {
-                            return Err(err("enum variant statement expected closing brace"));
+                            bail!("enum variant statement expected closing brace");
                         }
                     }
                     // println!("after {:?}", &cleaned);
@@ -790,7 +819,7 @@ impl Parse for EnumVariantStmt {
                                 EnumVariantType::Tuple(TupleStmt::parse(&mut cleaned)?);
                         } else {
                             println!("failed on: {:?}", next);
-                            return Err(err("enum variant statement expected variable or type or primitive identity"));
+                            bail!("enum variant statement expected variable or type or primitive identity");
                         }
                     }
                 }
@@ -857,7 +886,7 @@ struct EnumValueStmt {
 }
 
 impl Parse for EnumValueStmt {
-    fn parse(stack: &mut Vec<Token>) -> Result<Self, Error> {
+    fn parse(_stack: &mut Vec<Token>) -> Result<Self, Error> {
         todo!("missing EnumValueStmt")
     }
     fn validate(&self) -> Result<(), Error> {
@@ -897,7 +926,7 @@ impl Parse for StructStmt {
         struct_stmt.struct_type = TypeStmt::parse(&mut type_stack)?;
 
         // parse struct fields
-        let mut cleaned: Vec<Token> = remove_newline_and_indent(&mut stack)?;
+        let mut cleaned: Vec<Token> = remove_newline_indent(&mut stack)?;
         let mut field: Vec<Token> = vec![];
         while let Some(next) = cleaned.pop() {
             match next.ty {
@@ -949,22 +978,22 @@ impl Parse for StructFieldStmt {
                     struct_field.field_name = name;
                 }
                 _ => {
-                    return Err(err("expected IdVar"));
+                    bail!("expected IdVar");
                 }
             }
         } else {
-            return Err(err("expected IdVar"));
+            bail!("expected IdVar");
         }
         // Colon
         if let Some(tok) = stack.pop() {
             match tok.ty {
                 Ty::PunctColon => {}
                 _ => {
-                    return Err(err("struct field expected colon after variable identity"));
+                    bail!("struct field expected colon after variable identity");
                 }
             }
         } else {
-            return Err(err("struct field expected colon after variable identity"));
+            bail!("struct field expected colon after variable identity");
         }
         // TypeStmt
         struct_field.field_type = TypeStmt::parse(stack)?;
@@ -1065,22 +1094,22 @@ impl Parse for StructFieldValueStmt {
                     struct_field_value.field_name = name;
                 }
                 _ => {
-                    return Err(err("expected IdVar"));
+                    bail!("expected IdVar");
                 }
             }
         } else {
-            return Err(err("expected IdVar"));
+            bail!("expected IdVar");
         }
         // Colon
         if let Some(tok) = stack.pop() {
             match tok.ty {
                 Ty::PunctColon => {}
                 _ => {
-                    return Err(err("struct field expected colon after variable identity"));
+                    bail!("struct field expected colon after variable identity");
                 }
             }
         } else {
-            return Err(err("struct field expected colon after variable identity"));
+            bail!("struct field expected colon after variable identity");
         }
 
         // ExprStmt
@@ -1126,7 +1155,7 @@ struct TupleValueStmt {
 }
 
 impl Parse for TupleValueStmt {
-    fn parse(mut stack: &mut Vec<Token>) -> Result<Self, Error> {
+    fn parse(mut _stack: &mut Vec<Token>) -> Result<Self, Error> {
         todo!("missing ")
     }
     fn validate(&self) -> Result<(), Error> {
@@ -1139,7 +1168,7 @@ struct TupleFieldValueStmt {
     field_value: ExprStmt,
 }
 impl Parse for TupleFieldValueStmt {
-    fn parse(stack: &mut Vec<Token>) -> Result<Self, Error> {
+    fn parse(_stack: &mut Vec<Token>) -> Result<Self, Error> {
         todo!("missing TupleFieldValueStmt")
     }
     fn validate(&self) -> Result<(), Error> {
@@ -1206,13 +1235,13 @@ impl Parse for ExprStmt {
     fn parse(mut stack: &mut Vec<Token>) -> Result<Self, Error> {
         println!("ExprStmt {:?}", stack);
         // remove newlines and indentation
-        let mut cleaned = remove_newline_and_indent(&mut stack)?;
+        let mut cleaned = remove_newline_indent(&mut stack)?;
         cleaned.reverse();
         // println!("ExprStmt cleaned {:?}", cleaned);
         let mut expr_stmt = ExprStmt::default();
         match ExprParser.parse(cleaned.into_iter()) {
             Ok(expr) => expr_stmt.expr = expr,
-            Err(e) => return Err(err(&e.to_string()[..])),
+            Err(e) => bail!(e.to_string()),
         }
         Ok(expr_stmt)
     }
@@ -1577,13 +1606,475 @@ struct PackageStmt {
     version: String,
     files: Vec<PackageFileStmt>,
     dependencies: Vec<PackageDependencyStmt>,
-    import: Vec<PackageImportStmt>,
-    export: Vec<PackageExportStmt>,
+    imports: Vec<PackageImportStmt>,
+    exports: PackageExportStmt,
+}
+
+impl Parse for PackageStmt {
+    fn parse(stack: &mut Vec<Token>) -> Result<Self, Error> {
+        println!("PackageStmt {:?}", stack);
+        // remove newlines and indentation
+        let mut pkg_stmt = PackageStmt::default();
+        while let Some(token) = stack.pop() {
+            match token.ty {
+                Ty::NL => {
+                    // skip
+                }
+                Ty::Comment(_) => {
+                    // skip
+                }
+                Ty::Indent(0) => {
+                    // skip
+                }
+                Ty::KwPackage => {
+                    while let Some(next) = stack.pop() {
+                        match next.ty {
+                            Ty::IdPackage(id) | Ty::IdVar(id) | Ty::LitString(id) => {
+                                pkg_stmt.package_id = id;
+                                break;
+                            }
+                            Ty::Sp => {}
+                            _ => {
+                                stack.push(next);
+                                bail!("failed to parse package id. Expected IdPackage, IdVar or LitString")
+                            }
+                        }
+                    }
+                }
+                Ty::KwDescription => {
+                    while let Some(next) = stack.pop() {
+                        match next.ty {
+                            Ty::LitString(desc) => {
+                                pkg_stmt.description = desc;
+                                break;
+                            }
+                            Ty::Sp => {}
+                            _ => {
+                                stack.push(next);
+                                bail!("failed to parse package description. Expected LitString")
+                            }
+                        }
+                    }
+                }
+                Ty::KwVersion => {
+                    while let Some(next) = stack.pop() {
+                        match next.ty {
+                            Ty::LitString(version) => {
+                                pkg_stmt.version = version;
+                                break;
+                            }
+                            Ty::Sp => {}
+                            _ => {
+                                stack.push(next);
+                                bail!("failed to parse package version. Expected LitString")
+                            }
+                        }
+                    }
+                }
+                Ty::KwDependencies => {
+                    println!("deps stack: {:?}\n", stack);
+                    // can't reuse deps here because of how anyhow results work
+                    let mut deps = take_all_include_pattern(
+                        stack,
+                        vec![Ty::NL, Ty::Indent(0), Ty::PunctBraceR],
+                    )?;
+                    let mut deps = remove_newline_indent_space(&mut deps)?;
+                    println!("deps: {:?}\n\n", deps);
+
+                    // files is List of string
+                    if let Some(next) = deps.pop() {
+                        match next.ty {
+                            Ty::PunctBraceL => {}
+                            _ => {
+                                bail!("failed to parse package dependencies. Expected PunctBraceL")
+                            }
+                        }
+                    }
+                    // iterate deps
+                    let mut index = 0usize;
+                    let mut dep_stmt = PackageDependencyStmt::default();
+                    while let Some(next) = deps.pop() {
+                        match next.ty {
+                            Ty::IdVar(package_id) | Ty::IdPackage(package_id) => {
+                                if index != 0 {
+                                    bail!("failed to parse package dependencies. Expected pattern IdVar or IdPackage followed by LitString")
+                                }
+                                index += 1;
+                                dep_stmt.package_id = package_id;
+                            }
+                            Ty::LitString(path) => {
+                                if index != 1 {
+                                    bail!("failed to parse package dependencies. Expected pattern IdVar or IdPackage followed by LitString")
+                                }
+                                // reset
+                                index = 0;
+                                dep_stmt.path = path;
+                                pkg_stmt.dependencies.push(dep_stmt.clone())
+                            }
+                            Ty::PunctBraceR => {
+                                break;
+                            }
+                            _ => {
+                                bail!("failed to parse package files. Expected LitString or PunctBraceR")
+                            }
+                        }
+                    }
+                }
+                Ty::KwExport => {
+                    // println!("export stack: {:?}\n", stack);
+                    let mut exports = take_all_include_pattern(
+                        stack,
+                        vec![Ty::NL, Ty::Indent(0), Ty::PunctBraceR],
+                    )?;
+                    let mut exports = remove_newline_indent_space(&mut exports)?;
+                    // println!("exports: {:?}\n\n", exports);
+
+                    // files is List of string
+                    if let Some(next) = exports.pop() {
+                        match next.ty {
+                            Ty::PunctBraceL => {}
+                            _ => {
+                                bail!("failed to parse package export. Expected PunctBraceL")
+                            }
+                        }
+                    }
+
+                    // iterate list
+                    while let Some(next) = exports.pop() {
+                        match next.ty {
+                            // const
+                            Ty::IdVar(sym) => {
+                                let mut sym_stmt = PackageSymbolStmt::default();
+                                sym_stmt.symbol = PackageSymbol::Var(sym);
+                                pkg_stmt.exports.symbols.push(sym_stmt);
+                            }
+                            // :func
+                            Ty::IdFunc(sym) => {
+                                let mut sym_stmt = PackageSymbolStmt::default();
+                                sym_stmt.symbol = PackageSymbol::Func(sym);
+                                pkg_stmt.exports.symbols.push(sym_stmt);
+                            }
+                            // Type
+                            Ty::IdType(sym) => {
+                                let mut sym_stmt = PackageSymbolStmt::default();
+                                sym_stmt.symbol = PackageSymbol::Type(sym);
+                                pkg_stmt.exports.symbols.push(sym_stmt);
+                            }
+                            // trait
+                            Ty::OpBitwiseXOr => {
+                                // we have a trait next...
+                                if let Some(next) = exports.pop() {
+                                    match next.ty {
+                                        Ty::IdType(ty) => {
+                                            let mut sym_stmt = PackageSymbolStmt::default();
+                                            sym_stmt.symbol =
+                                                PackageSymbol::Trait(format!("^{}", ty));
+                                            pkg_stmt.exports.symbols.push(sym_stmt);
+                                        }
+                                        _ => {
+                                            bail!("failed to parse package export. Expected IdType for ^Trait")
+                                        }
+                                    }
+                                }
+                            }
+                            Ty::PunctBraceR => {
+                                break;
+                            }
+                            _ => {
+                                bail!("failed to parse package export. Expected PunctBraceR")
+                            }
+                        }
+                    }
+                }
+                Ty::KwImport => {
+                    println!("import stack: {:?}\n", stack);
+                    let mut imports = take_all_include_pattern(
+                        stack,
+                        vec![Ty::NL, Ty::Indent(0), Ty::PunctBraceR],
+                    )?;
+                    let mut imports = remove_newline_indent_space(&mut imports)?;
+                    println!("imports: {:?}\n\n", imports);
+
+                    // files is List of string
+                    if let Some(next) = imports.pop() {
+                        match next.ty {
+                            Ty::PunctBraceL => {}
+                            _ => {
+                                bail!("failed to parse package import. Expected PunctBraceL")
+                            }
+                        }
+                    }
+
+                    // iterate list
+                    while let Some(next) = imports.pop() {
+                        match next.ty {
+                            // const
+                            Ty::IdVar(package_id) | Ty::IdPackage(package_id) => {
+                                // sniff next
+                                let mut imp_stmt = PackageImportStmt::default();
+                                imp_stmt.package_id = package_id;
+                                if let Some(next) = imports.pop() {
+                                    match next.ty {
+                                        Ty::KwAs => {
+                                            // next should be a package id
+                                            if let Some(next) = imports.pop() {
+                                                match next.ty {
+                                                    Ty::IdVar(as_package_id)
+                                                    | Ty::IdPackage(as_package_id) => {
+                                                        imp_stmt.as_package_id =
+                                                            Some(as_package_id);
+                                                    }
+                                                    _ => {
+                                                        bail!("failed to parse package import. Expected IdVar or IdPackage after KwAs")
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        Ty::IdVar(_) | Ty::IdPackage(_) => {
+                                            pkg_stmt.imports.push(imp_stmt);
+                                            imports.push(next);
+                                            continue;
+                                        }
+                                        Ty::PunctBraceL => {
+                                            // handle this directly below
+                                            // or on the next iteration
+                                            println!("push next: {:?}", next);
+                                            imports.push(next);
+                                        }
+                                        _ => {
+                                            bail!("failed to parse package import. Unexpected token after IdVar or IdPackage")
+                                        }
+                                    }
+                                }
+
+                                // parse symbols
+                                if let Some(next) = imports.pop() {
+                                    match next.ty {
+                                        Ty::PunctBraceL => {
+                                            // Behold thy glorious import symbols
+                                            // should be similar to export but we can alias these
+                                            while let Some(next) = imports.pop() {
+                                                match next.ty {
+                                                    // const
+                                                    Ty::IdVar(sym) => {
+                                                        let mut sym_stmt =
+                                                            PackageSymbolStmt::default();
+                                                        sym_stmt.symbol = PackageSymbol::Var(sym);
+
+                                                        // check for alias.. should match IdVar
+                                                        if let Some(next) = imports.pop() {
+                                                            match next.ty {
+                                                                Ty::KwAs => {
+                                                                    if let Some(next) =
+                                                                        imports.pop()
+                                                                    {
+                                                                        match next.ty {
+                                                                    Ty::IdVar(sym) => {
+                                                                        sym_stmt.as_symbol = Some(PackageSymbol::Var(sym));
+                                                                    },
+                                                                    _ => bail!("failed to parse package import. Expected KwAs of IdVar type to match")
+                                                                }
+                                                                    }
+                                                                }
+                                                                _ => {
+                                                                    imports.push(next);
+                                                                }
+                                                            }
+                                                        }
+                                                        imp_stmt.symbols.push(sym_stmt);
+                                                    }
+                                                    // :func
+                                                    Ty::IdFunc(sym) => {
+                                                        let mut sym_stmt =
+                                                            PackageSymbolStmt::default();
+                                                        sym_stmt.symbol = PackageSymbol::Func(sym);
+                                                        // check for alias.. should match IdFunc
+                                                        if let Some(next) = imports.pop() {
+                                                            match next.ty {
+                                                                Ty::KwAs => {
+                                                                    if let Some(next) =
+                                                                        imports.pop()
+                                                                    {
+                                                                        match next.ty {
+                                                                    Ty::IdFunc(sym) => {
+                                                                        sym_stmt.as_symbol = Some(PackageSymbol::Func(sym));
+                                                                    },
+                                                                    _ => bail!("failed to parse package import. Expected KwAs of IdFunc type to match")
+                                                                }
+                                                                    }
+                                                                }
+                                                                _ => {
+                                                                    imports.push(next);
+                                                                }
+                                                            }
+                                                        }
+                                                        imp_stmt.symbols.push(sym_stmt);
+                                                    }
+                                                    // Type
+                                                    Ty::IdType(sym) => {
+                                                        println!("parse type sym: {:?}", sym);
+                                                        let mut sym_stmt =
+                                                            PackageSymbolStmt::default();
+                                                        sym_stmt.symbol = PackageSymbol::Type(sym);
+
+                                                        // check for alias.. should match IdType
+                                                        if let Some(next) = imports.pop() {
+                                                            match next.ty {
+                                                                Ty::KwAs => {
+                                                                    if let Some(next) =
+                                                                        imports.pop()
+                                                                    {
+                                                                        match next.ty {
+                                                                    Ty::IdType(sym) => {
+                                                                        sym_stmt.as_symbol = Some(PackageSymbol::Type(sym));
+                                                                    },
+                                                                    _ => bail!("failed to parse package import. Expected KwAs of IdType type to match")
+                                                                }
+                                                                    }
+                                                                }
+                                                                _ => {
+                                                                    imports.push(next);
+                                                                }
+                                                            }
+                                                        }
+                                                        imp_stmt.symbols.push(sym_stmt);
+                                                    }
+                                                    // trait
+                                                    Ty::OpBitwiseXOr => {
+                                                        // we have a trait next...
+                                                        let mut sym_stmt =
+                                                            PackageSymbolStmt::default();
+                                                        // primary
+                                                        if let Some(next) = imports.pop() {
+                                                            match next.ty {
+                                                                Ty::IdType(ty) => {
+                                                                    sym_stmt.symbol =
+                                                                        PackageSymbol::Trait(
+                                                                            format!("^{}", ty),
+                                                                        );
+                                                                }
+                                                                _ => {
+                                                                    bail!("failed to parse package import. Expected IdType after OpBitwiseXOr for trait")
+                                                                }
+                                                            }
+                                                        }
+                                                        // check alias
+                                                        if let Some(next) = imports.pop() {
+                                                            match next.ty {
+                                                                Ty::KwAs => {
+                                                                    if let Some(next) =
+                                                                        imports.pop()
+                                                                    {
+                                                                        match next.ty {
+                                                                    Ty::OpBitwiseXOr => {
+                                                                        if let Some(next) = imports.pop() {
+                                                                            match next.ty {
+                                                                                Ty::IdType(ty) => {
+                                                                                    sym_stmt.as_symbol =
+                                                                                        Some(PackageSymbol::Trait(
+                                                                                            format!("^{}", ty),
+                                                                                        ));
+                                                                                    imp_stmt.symbols.push(sym_stmt);
+                                                                                }
+                                                                                _ => {
+                                                                                    bail!("failed to parse package import. KwAs doesn't match type Trait")
+                                                                                }
+                                                                            }
+                                                                        }
+                                                                    },
+                                                                    _ => bail!("failed to parse package import. Expected KwAs of IdType type to match")
+                                                                }
+                                                                    }
+                                                                }
+                                                                _ => {
+                                                                    imports.push(next);
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                    Ty::PunctBraceR => {
+                                                        pkg_stmt.imports.push(imp_stmt);
+                                                        break;
+                                                    }
+                                                    _ => {
+                                                        bail!("failed to parse package import. Unexpected token {:?} while parsing package symbols", next)
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        _ => {
+                                            // TODO: is this an error or not?
+                                            // we don't have any symbols to import
+                                            pkg_stmt.imports.push(imp_stmt);
+                                            continue;
+                                        }
+                                    }
+                                }
+                            }
+
+                            Ty::PunctBraceR => {
+                                break;
+                            }
+                            _ => {
+                                bail!("failed to parse package import. Expected PunctBraceR but encountered {:?}", next)
+                            }
+                        }
+                    }
+                }
+                Ty::KwFiles => {
+                    // println!("files stack: {:?}\n", stack);
+                    let mut files = take_all_include_pattern(
+                        stack,
+                        vec![Ty::NL, Ty::Indent(0), Ty::PunctBraceR],
+                    )?;
+                    let mut files = remove_newline_indent_space(&mut files)?;
+                    // println!("files: {:?}\n\n", files);
+                    // files is List of string
+                    if let Some(next) = files.pop() {
+                        match next.ty {
+                            Ty::PunctBraceL => {}
+                            _ => {
+                                bail!("failed to parse package files. Expected PunctBraceL")
+                            }
+                        }
+                    }
+                    // iterate list
+                    while let Some(next) = files.pop() {
+                        match next.ty {
+                            Ty::LitString(file) => {
+                                let file_stmt = PackageFileStmt {
+                                    path: PathBuf::from(file),
+                                };
+                                pkg_stmt.files.push(file_stmt);
+                            }
+                            Ty::PunctBraceR => {
+                                break;
+                            }
+                            _ => {
+                                bail!("failed to parse package files. Expected LitString or PunctBraceR")
+                            }
+                        }
+                    }
+                }
+                _ => {
+                    bail!("unsupported top-level package field")
+                }
+            }
+        }
+
+        info!("PkgStmt: {:?}", pkg_stmt);
+
+        Ok(pkg_stmt)
+    }
+
+    fn validate(&self) -> Result<(), Error> {
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone, Default, PartialEq)]
 struct PackageDependencyStmt {
-    package_id: Option<String>,
+    package_id: String,
     path: String,
 }
 
@@ -1595,17 +2086,34 @@ struct PackageFileStmt {
 #[derive(Debug, Clone, Default, PartialEq)]
 struct PackageImportStmt {
     package_id: String,
+    as_package_id: Option<String>,
+    // we need to explicitly import symbols
+    // from a package to make them available
     symbols: Vec<PackageSymbolStmt>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq)]
 struct PackageExportStmt {
-    package_id: Option<String>,
     symbols: Vec<PackageSymbolStmt>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+enum PackageSymbol {
+    None,
+    Var(String),
+    Func(String),
+    Type(String),
+    Trait(String),
+}
+
+impl Default for PackageSymbol {
+    fn default() -> Self {
+        Self::None
+    }
 }
 
 #[derive(Debug, Clone, Default, PartialEq)]
 struct PackageSymbolStmt {
-    id: String,
-    as_: Option<String>,
+    symbol: PackageSymbol,
+    as_symbol: Option<PackageSymbol>,
 }
