@@ -50,6 +50,13 @@
 ## NewTypeStmt
 
 ## PackageStmt
+  - [x] PackageStmt
+    - [x] Description
+    - [x] VersionStmt
+    - [x] FileStmt
+    - [x] DependencyStmt
+    - [x] ImportStmt
+    - [x] ExportStmt
 
 # Blocks
 

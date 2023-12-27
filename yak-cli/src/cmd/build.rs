@@ -39,7 +39,16 @@ pub(crate) fn call(args: &BuildArgs) -> Result<()> {
 
     // parse the package file
     let mut pkg_ast = Ast::from_file(pkgfile)?;
-    pkg_ast.parse()?;
+    pkg_ast.parse_package()?;
+    let parsed_pkg = pkg_ast.parsed.package.clone();
+
+    // convert AST => yak_package
+    let mut pkg_local_path = abs_path.into_os_string().into_string().unwrap();
+    if pkg_local_path.ends_with("/yak.pkg") {
+        pkg_local_path = pkg_local_path.replace("/yak.pkg", "");
+    }
+    let yak_pkg = parsed_pkg.into_yak_package(true, pkg_local_path, None);
+    info!("{:?}", yak_pkg);
 
     Ok(())
 }

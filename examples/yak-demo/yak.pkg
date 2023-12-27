@@ -1,0 +1,14 @@
+package     "yak.demo"
+description "A simple demo"
+files {
+  "./lib.yak"
+}
+dependencies {
+  yak.pkg1 "../yak-pkg1"
+  yak.pkg2 "https://raw.githubusercontent.com/grippy/yak/master/examples/yak-pkg1"
+}
+import {
+  yak.pkg1
+  yak.pkg2
+
+}

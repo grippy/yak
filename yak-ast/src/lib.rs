@@ -1,4 +1,5 @@
 #![allow(dead_code)]
+#![allow(private_interfaces)]
 
 mod expr;
 mod pratt;
@@ -10,15 +11,24 @@ use expr::ExprParser;
 use log::{error, info};
 use pratt::PrattParser;
 use std::fs;
-// use std::io::{Error, ErrorKind};
 use std::path::PathBuf;
-use std::process::Output;
+use yak_core::models::yak_package::{
+    Symbol, YakDependency, YakExport, YakFile, YakImport, YakPackage, YakSymbol,
+};
+use yak_core::models::yak_version::YakVersion;
 use yak_lexer::token::TokenType as Ty;
 use yak_lexer::{Lexer, Token};
 
-// fn err(msg: &str) -> Error {
-//     Error::new(ErrorKind::InvalidInput, msg)
-// }
+// Strip quotes from start/end of AST strings
+fn clean_quotes(mut s: String) -> String {
+    if s.starts_with("\"") {
+        s = s.strip_prefix("\"").unwrap().to_string();
+    }
+    if s.ends_with("\"") {
+        s = s.strip_suffix("\"").unwrap().to_string();
+    }
+    s
+}
 
 #[derive(Debug, Clone, Default)]
 struct Balance {
@@ -52,16 +62,16 @@ impl Balance {
 
 #[derive(Debug, Default)]
 pub struct Parsed {
-    package: Option<PackageStmt>,
-    constants: Vec<ConstStmt>,
-    enums: Vec<EnumStmt>,
-    errors: Vec<Error>,
-    funcs: Vec<FuncStmt>,
-    impl_traits: Vec<ImplTraitStmt>,
-    lets: Vec<LetStmt>,
-    structs: Vec<StructStmt>,
-    traits: Vec<TraitStmt>,
-    tests: Vec<TestStmt>,
+    pub package: PackageStmt,
+    pub consts: Vec<ConstStmt>,
+    pub enums: Vec<EnumStmt>,
+    pub errors: Vec<Error>,
+    pub funcs: Vec<FuncStmt>,
+    pub impl_traits: Vec<ImplTraitStmt>,
+    pub lets: Vec<LetStmt>,
+    pub structs: Vec<StructStmt>,
+    pub traits: Vec<TraitStmt>,
+    pub tests: Vec<TestStmt>,
 }
 
 #[derive(Debug)]
@@ -99,10 +109,9 @@ impl Ast {
             parsed: Parsed::default(),
         }
     }
-
-    pub fn parse_package_stmt(&mut self) -> Result<()> {
+    pub fn parse_package(&mut self) -> Result<()> {
         match PackageStmt::parse(&mut self.stack) {
-            Ok(stmt) => self.parsed.package = Some(stmt),
+            Ok(stmt) => self.parsed.package = stmt,
             Err(err) => self.parsed.errors.push(err),
         };
         if self.parsed.errors.len() > 0 {
@@ -114,7 +123,18 @@ impl Ast {
         Ok(())
     }
 
-    pub fn parse_stmts(&mut self) -> Result<()> {
+    pub fn parse_file(&mut self, file: PathBuf) -> Result<()> {
+        let src = fs::read_to_string(&file)
+            .with_context(|| format!("unable to read file: {}", &file.display()))?;
+        let mut lexer = Lexer::from_source(&src);
+        lexer.parse();
+        self.file = Some(file);
+        self.stack = lexer.tokens_as_stack();
+        self.parse()?;
+        Ok(())
+    }
+
+    pub fn parse(&mut self) -> Result<()> {
         // parse top-level statements
         while let Some(token) = self.stack.pop() {
             // println!("ast.parse {:?}", token.ty);
@@ -135,7 +155,6 @@ impl Ast {
                 }
             }
         }
-
         if self.parsed.errors.len() > 0 {
             for err in self.parsed.errors.iter() {
                 error!("parser error: {}", &err);
@@ -144,7 +163,6 @@ impl Ast {
         }
         Ok(())
     }
-
     fn top_level_stmts(&mut self) -> Option<Error> {
         // current token is indent=0
         while let Some(token) = self.stack.pop() {
@@ -174,7 +192,7 @@ impl Ast {
                             match stmt {
                                 Ok(const_stmt) => {
                                     println!("const_stmt {:#?}", const_stmt);
-                                    self.parsed.constants.push(const_stmt);
+                                    self.parsed.consts.push(const_stmt);
                                 }
                                 Err(err) => return Some(err),
                             }
@@ -1600,7 +1618,7 @@ impl Default for Block {
 }
 
 #[derive(Debug, Clone, Default, PartialEq)]
-struct PackageStmt {
+pub struct PackageStmt {
     package_id: String,
     description: String,
     version: String,
@@ -1610,9 +1628,41 @@ struct PackageStmt {
     exports: PackageExportStmt,
 }
 
+impl PackageStmt {
+    pub fn into_yak_package(
+        self,
+        pkg_root: bool,
+        pkg_local_path: String,
+        pkg_remote_path: Option<String>,
+    ) -> Result<YakPackage> {
+        let mut pkg = YakPackage::default();
+        pkg.pkg_root = pkg_root;
+        pkg.pkg_id = clean_quotes(self.package_id);
+        pkg.pkg_description = clean_quotes(self.description);
+        pkg.pkg_version = YakVersion {
+            version: clean_quotes(self.version),
+        };
+        pkg.pkg_local_path = pkg_local_path;
+        pkg.pkg_remote_path = pkg_remote_path;
+        // convert files...
+        pkg.pkg_files = self.files.into_iter().map(|file| file.into()).collect();
+        // convert dependencies
+        pkg.pkg_dependencies = self
+            .dependencies
+            .into_iter()
+            .map(|dep| dep.into())
+            .collect();
+        // convert imports
+        pkg.pkg_imports = self.imports.into_iter().map(|imp| imp.into()).collect();
+        // convert exports
+        pkg.pkg_exports = self.exports.into();
+        Ok(pkg)
+    }
+}
+
 impl Parse for PackageStmt {
     fn parse(stack: &mut Vec<Token>) -> Result<Self, Error> {
-        println!("PackageStmt {:?}", stack);
+        info!("PackageStmt {:?}", stack);
         // remove newlines and indentation
         let mut pkg_stmt = PackageStmt::default();
         while let Some(token) = stack.pop() {
@@ -1841,8 +1891,11 @@ impl Parse for PackageStmt {
                                             println!("push next: {:?}", next);
                                             imports.push(next);
                                         }
+                                        Ty::PunctBraceR => {
+                                            break;
+                                        }
                                         _ => {
-                                            bail!("failed to parse package import. Unexpected token after IdVar or IdPackage")
+                                            bail!("failed to parse package import. Unexpected token after IdVar or IdPackage (found {:?})", next)
                                         }
                                     }
                                 }
@@ -2042,9 +2095,7 @@ impl Parse for PackageStmt {
                     while let Some(next) = files.pop() {
                         match next.ty {
                             Ty::LitString(file) => {
-                                let file_stmt = PackageFileStmt {
-                                    path: PathBuf::from(file),
-                                };
+                                let file_stmt = PackageFileStmt { path: file };
                                 pkg_stmt.files.push(file_stmt);
                             }
                             Ty::PunctBraceR => {
@@ -2078,9 +2129,26 @@ struct PackageDependencyStmt {
     path: String,
 }
 
+impl Into<YakDependency> for PackageDependencyStmt {
+    fn into(self) -> YakDependency {
+        let mut yak_dep = YakDependency::default();
+        yak_dep.pkg_id = clean_quotes(self.package_id);
+        yak_dep.path = clean_quotes(self.path);
+        yak_dep
+    }
+}
+
 #[derive(Debug, Clone, Default, PartialEq)]
 struct PackageFileStmt {
-    path: PathBuf,
+    path: String,
+}
+
+impl Into<YakFile> for PackageFileStmt {
+    fn into(self) -> YakFile {
+        let mut yak_file = YakFile::default();
+        yak_file.path = clean_quotes(self.path);
+        yak_file
+    }
 }
 
 #[derive(Debug, Clone, Default, PartialEq)]
@@ -2092,9 +2160,27 @@ struct PackageImportStmt {
     symbols: Vec<PackageSymbolStmt>,
 }
 
+impl Into<YakImport> for PackageImportStmt {
+    fn into(self) -> YakImport {
+        let mut yak_import = YakImport::default();
+        yak_import.pkg_id = self.package_id;
+        yak_import.as_pkg_id = self.as_package_id;
+        yak_import.symbols = self.symbols.into_iter().map(|sym| sym.into()).collect();
+        yak_import
+    }
+}
+
 #[derive(Debug, Clone, Default, PartialEq)]
 struct PackageExportStmt {
     symbols: Vec<PackageSymbolStmt>,
+}
+
+impl Into<YakExport> for PackageExportStmt {
+    fn into(self) -> YakExport {
+        let mut yak_export = YakExport::default();
+        yak_export.symbols = self.symbols.into_iter().map(|sym| sym.into()).collect();
+        yak_export
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -2112,8 +2198,33 @@ impl Default for PackageSymbol {
     }
 }
 
+impl Into<Symbol> for PackageSymbol {
+    fn into(self) -> Symbol {
+        match self {
+            PackageSymbol::None => Symbol::None,
+            PackageSymbol::Var(s) => Symbol::Var(clean_quotes(s)),
+            PackageSymbol::Func(s) => Symbol::Func(clean_quotes(s)),
+            PackageSymbol::Type(s) => Symbol::Type(clean_quotes(s)),
+            PackageSymbol::Trait(s) => Symbol::Trait(clean_quotes(s)),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Default, PartialEq)]
 struct PackageSymbolStmt {
     symbol: PackageSymbol,
     as_symbol: Option<PackageSymbol>,
+}
+
+impl Into<YakSymbol> for PackageSymbolStmt {
+    fn into(self) -> YakSymbol {
+        let mut yak_sym = YakSymbol::default();
+        yak_sym.symbol = self.symbol.into();
+        yak_sym.as_symbol = if self.as_symbol.is_some() {
+            Some(self.as_symbol.unwrap().into())
+        } else {
+            None
+        };
+        yak_sym
+    }
 }

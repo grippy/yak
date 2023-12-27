@@ -24,8 +24,13 @@ pub struct YakEnv {
 
 impl Default for YakEnv {
     fn default() -> Self {
+        // shellexpand
+        let mut yak_home = get("YAK_HOME", "~/.yak");
+        if yak_home.starts_with("~") {
+            yak_home = shellexpand::tilde(&yak_home).into();
+        }
         YakEnv {
-            yak_home: get("YAK_HOME", "~/.yak"),
+            yak_home: yak_home,
             yak_version: normalize_version(get("YAK_VERSION", "0.0.0")),
         }
     }

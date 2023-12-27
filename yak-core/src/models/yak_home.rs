@@ -1,6 +1,8 @@
 use crate::models::yak_env::YakEnv;
-use std::path::PathBuf;
-use std::{fs, io};
+use anyhow::{Context, Result};
+use log::info;
+use std::fs;
+use std::path::{Path, PathBuf};
 
 // YakHome defines the structure of the $YAK_HOME directory
 #[derive(Debug)]
@@ -17,27 +19,32 @@ impl Default for YakHome {
 }
 
 impl YakHome {
-    fn get_home_dir(&self) -> PathBuf {
+    // ~/.yak
+    pub fn get_home_dir(&self) -> PathBuf {
         PathBuf::from_iter([&self.env.yak_home].iter())
     }
-    fn get_home_version_dir(&self) -> PathBuf {
+    // ~/.yak/yak/v0.0.0
+    pub fn get_home_version_dir(&self) -> PathBuf {
         PathBuf::from_iter([&self.env.yak_home, "yak", &self.version_path_part()].iter())
     }
-    fn get_home_version_bin_dir(&self) -> PathBuf {
+    // ~/.yak/yak/v0.0.0/bin
+    pub fn get_home_version_bin_dir(&self) -> PathBuf {
         PathBuf::from_iter([&self.env.yak_home, "yak", &self.version_path_part(), "bin"].iter())
     }
-    fn get_home_version_pkg_dir(&self) -> PathBuf {
+    // ~/.yak/yak/v0.0.0/pkg
+    pub fn get_home_version_pkg_dir(&self) -> PathBuf {
         PathBuf::from_iter([&self.env.yak_home, "yak", &self.version_path_part(), "pkg"].iter())
     }
-    fn get_home_version_src_dir(&self) -> PathBuf {
+    // ~/.yak/yak/v0.0.0/src
+    pub fn get_home_version_src_dir(&self) -> PathBuf {
         PathBuf::from_iter([&self.env.yak_home, "yak", &self.version_path_part(), "src"].iter())
     }
     // prefix v to the version part
-    fn version_path_part(&self) -> String {
+    pub fn version_path_part(&self) -> String {
         format!("v{}", &self.env.yak_version)
     }
     // generate a list of paths to create for the YAK_HOME directory
-    fn paths(&self) -> Vec<PathBuf> {
+    pub fn paths(&self) -> Vec<PathBuf> {
         let mut paths = vec![self.get_home_dir()];
         // We might not have a yak version enabled
         // so skip creating these paths
@@ -52,9 +59,14 @@ impl YakHome {
         paths
     }
 
-    fn create_home_dir(&self) -> io::Result<()> {
-        for path in self.paths() {
-            fs::create_dir_all(path)?;
+    pub fn create_home_dir(&self) -> Result<()> {
+        for path in &self.paths() {
+            if Path::new(path).exists() {
+                continue;
+            }
+            info!("create yak dir: {}", &path.display());
+            let _ = fs::create_dir_all(path)
+                .with_context(|| format!("failed to create file path: {}", path.display()))?;
         }
         Ok(())
     }

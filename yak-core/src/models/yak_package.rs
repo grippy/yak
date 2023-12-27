@@ -1,59 +1,131 @@
 use crate::models::yak_version::YakVersion;
-use std::collections::HashMap;
+use crate::utils::{download_file, normalize_path};
+use anyhow::Result;
+use log::{error, info};
+use std::fs;
+use std::path::{Path, PathBuf};
+use url::{ParseError, Url};
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct YakPackage {
-    package_id: String,
-    package_path: String,
-    package_version: YakVersion,
-    description: String,
-    yak_version: YakVersion,
-    files: Vec<YakFile>,
-    features: HashMap<String, YakFeature>,
-    dependencies: Vec<YakDependency>,
-    imports: Vec<YakImport>,
-    exports: Vec<YakExport>,
+    pub pkg_root: bool,
+    pub pkg_id: String,
+    pub pkg_local_path: String,
+    pub pkg_remote_path: Option<String>,
+    pub pkg_version: YakVersion,
+    pub pkg_description: String,
+    pub pkg_files: Vec<YakFile>,
+    pub pkg_dependencies: Vec<YakDependency>,
+    pub pkg_imports: Vec<YakImport>,
+    pub pkg_exports: YakExport,
+    // yak version semver requirement
+    pub yak_version: YakVersion,
 }
 
-#[derive(Debug)]
+impl YakPackage {
+    // iterate all dependencies and cache
+    // them in the pkg_local_path directory
+    pub fn get_remote_deps(&mut self) {}
+
+    // iterate all files and cache
+    // them in the pkg_local_path directory
+    pub fn get_remote_files(&mut self) -> Result<()> {
+        if self.pkg_remote_path.is_none() {
+            return Ok(());
+        }
+        let pkg_local_path = self.pkg_local_path.clone();
+        let pkg_remote_path = self.pkg_remote_path.clone().unwrap();
+        for pkg_file in &mut self.pkg_files {
+            pkg_file.get_remote_file(pkg_local_path.clone(), pkg_remote_path.clone())?
+        }
+
+        Ok(())
+    }
+}
+
+#[derive(Debug, Default)]
 pub struct YakFile {
-    path: String,
-    source: String,
+    pub path: String,
+    pub local_path: String,
+    pub remote_path: String,
+    pub src: String,
 }
 
-#[derive(Debug)]
+impl YakFile {
+    fn get_remote_file(
+        &mut self,
+        pkg_local_path: String,
+        mut pkg_remote_path: String,
+    ) -> Result<()> {
+        if !pkg_remote_path.ends_with("/") {
+            pkg_remote_path += "/";
+        }
+        let pkg_remote_url = Url::parse(&pkg_remote_path)?;
+        let pkg_remote_file = pkg_remote_url.join(&self.path)?;
+        let pkg_local_file = normalize_path(Path::new(
+            format!("{}/{}", pkg_local_path, &self.path).as_str(),
+        ))
+        .display()
+        .to_string();
+        // save remote and local paths
+        self.remote_path = pkg_remote_file.to_string();
+        self.local_path = pkg_local_file.clone();
+        info!("read file {}", &self.remote_path);
+        info!("write file {}", &self.local_path);
+        download_file(
+            &pkg_remote_file.to_string(),
+            &pkg_local_path,
+            &pkg_local_file,
+        )?;
+        Ok(())
+    }
+}
+
+#[derive(Debug, Default)]
 pub struct YakDependency {
-    package_id: String,
-    package_path: String,
+    pub pkg_id: String,
+    pub path: String,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct YakFeature {
-    name: String,
-    enabled: bool,
-    files: Vec<YakFile>,
-    dependencies: Vec<YakDependency>,
+    pub name: String,
+    pub enabled: bool,
+    pub files: Vec<YakFile>,
+    pub dependencies: Vec<YakDependency>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct YakImport {
-    package_id: String,
-    symbols: Vec<YakSymbol>,
+    pub pkg_id: String,
+    pub as_pkg_id: Option<String>,
+    pub symbols: Vec<YakSymbol>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct YakExport {
-    // package_id is optional
-    // if omitted we're exporting "local" symbols
-    // otherwise, we're re-exporting symbols from a dependency
-    package_id: Option<String>,
-    symbols: Vec<YakSymbol>,
+    pub symbols: Vec<YakSymbol>,
 }
 
 #[derive(Debug)]
+pub enum Symbol {
+    None,
+    Var(String),
+    Func(String),
+    Type(String),
+    Trait(String),
+}
+
+impl Default for Symbol {
+    fn default() -> Self {
+        Self::None
+    }
+}
+
+#[derive(Debug, Default)]
 pub struct YakSymbol {
     // identity: Type, ^Trait, :fn, const, etc.
-    id: String,
+    pub symbol: Symbol,
     // `as` renames the import/export type
-    as_: Option<String>,
+    pub as_symbol: Option<Symbol>,
 }

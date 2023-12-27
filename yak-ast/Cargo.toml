@@ -8,4 +8,5 @@ edition = "2021"
 [dependencies]
 anyhow = { version = "1.0" }
 log = { version = "0.4.20" }
+yak-core = { path = "../yak-core" }
 yak-lexer = { path = "../yak-lexer" }
