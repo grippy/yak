@@ -8,4 +8,6 @@ files {
 }
 export {
   hello
+  MyEnum
+  MyStruct
 }
