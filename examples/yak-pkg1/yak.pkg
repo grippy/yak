@@ -3,6 +3,7 @@ description "An example package to test if this works or not"
 version     "0.0.0"
 files {
   "./const.yak"
+  "./enum.yak"
   "./struct.yak"
 }
 export {

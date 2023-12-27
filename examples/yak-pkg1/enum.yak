@@ -1,0 +1,7 @@
+enum MyEnum
+  V1 { str int }
+  V2 {
+    f1: str
+    f2: int
+  }
+  V3
