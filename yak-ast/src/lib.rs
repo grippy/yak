@@ -2,14 +2,13 @@
 #![allow(private_interfaces)]
 
 mod expr;
-mod pratt;
 
 mod test;
 
 use anyhow::{bail, Context, Error, Result};
-use expr::ExprParser;
+use expr::expr::ExprParser;
+use expr::pratt::PrattParser;
 use log::{error, info};
-use pratt::PrattParser;
 use std::fs;
 use std::path::PathBuf;
 use yak_core::models::yak_package::{
@@ -1551,6 +1550,8 @@ struct IfConditionStmt {
 
 // ConditionStmt might be able to wrap an ExprStmt
 // and it needs to test if the ExprStmt returns a boolean
+// or we make a special type of ConditionExpr that only
+// allows for a boolean return type
 #[derive(Debug, Clone, Default, PartialEq)]
 struct ConditionStmt {
     expr: ExprStmt,
@@ -1601,11 +1602,11 @@ enum Block {
     None,
     Assign(AssignStmt),
     Block(Box<BlockStmt>),
+    Const(ConstStmt),
     For(ForStmt),
     ForIn(ForInStmt),
     If(IfStmt),
     Let(LetStmt),
-    Const(ConstStmt),
     Match(MatchStmt),
     Return(ReturnStmt),
     While(WhileStmt),
@@ -1617,6 +1618,9 @@ impl Default for Block {
     }
 }
 
+//
+// Package Statements
+//
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct PackageStmt {
     package_id: String,

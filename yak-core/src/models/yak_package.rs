@@ -1,10 +1,9 @@
 use crate::models::yak_version::YakVersion;
 use crate::utils::{download_file, normalize_path};
 use anyhow::Result;
-use log::{error, info};
-use std::fs;
-use std::path::{Path, PathBuf};
-use url::{ParseError, Url};
+use log::info;
+use std::path::Path;
+use url::Url;
 
 #[derive(Debug, Default)]
 pub struct YakPackage {
@@ -18,7 +17,7 @@ pub struct YakPackage {
     pub pkg_dependencies: Vec<YakDependency>,
     pub pkg_imports: Vec<YakImport>,
     pub pkg_exports: YakExport,
-    // yak version semver requirement
+    // TODO: yak version semver requirement
     pub yak_version: YakVersion,
 }
 
