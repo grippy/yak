@@ -1,7 +1,7 @@
 package     "yak.demo"
 description "A simple demo"
 files {
-  "./lib.yak"
+  "./src/lib.yak"
 }
 dependencies {
   yak.pkg1 "../yak-pkg1"
@@ -10,5 +10,4 @@ dependencies {
 import {
   yak.pkg1
   yak.pkg2
-
 }
