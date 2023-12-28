@@ -3,7 +3,6 @@ use clap::{arg, Args};
 use log::info;
 use std::path::{Path, PathBuf};
 use std::{fs, fs::File, io::copy};
-use url::{ParseError, Url};
 use yak_ast::Ast;
 use yak_core::models::yak_home::YakHome;
 

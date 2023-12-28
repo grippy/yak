@@ -1,7 +1,8 @@
 use crate::expr::pratt::{Affix, Associativity, NoError, PrattParser, Precedence, Result};
 use crate::{
-    ArithOp, Balance, BinaryExprStmt, BitwiseOp, BooleanOp, Expr, LogicalOp, Op, Parse,
-    StructValueStmt, UnaryExprStmt, UnaryOp, Value, ValueStmt,
+    ArithOp, Balance, BinaryExprStmt, BitwiseOp, BooleanOp, EnumValueStmt, Expr, FuncValueStmt,
+    LogicalOp, Op, Parse, StructValueStmt, TupleValueStmt, UnaryExprStmt, UnaryOp, Value,
+    ValueStmt,
 };
 use yak_lexer::token::TokenType as Ty;
 use yak_lexer::Token;
@@ -171,7 +172,37 @@ where
             })),
             Ty::IdFunc(_) => {
                 // this should take the entire func call
-                todo!("expr parsing doesn't implement FuncValueStmt yet");
+                // and is similar to a StructValueStmt
+                let mut balance = Balance::default();
+                balance.brace_l += 1;
+
+                let mut group: Vec<Token> = vec![];
+                while let Some(next_tok) = inputs.next() {
+                    match next_tok.ty {
+                        Ty::PunctBraceL => {
+                            balance.brace_l += 1;
+                        }
+                        Ty::PunctBraceR => {
+                            balance.brace_r += 1;
+                        }
+                        _ => {}
+                    }
+                    if balance.balanced_braces() {
+                        break;
+                    } else {
+                        group.push(next_tok);
+                    }
+                }
+                // make this a stack
+                group.reverse();
+                // add the IdType back
+                group.push(tok);
+
+                let func_val_stmt =
+                    FuncValueStmt::parse(&mut group).expect("unable to parse FuncValueStmt");
+                Ok(Expr::Value(ValueStmt {
+                    value: Value::Func(func_val_stmt),
+                }))
             }
             Ty::IdType(_) => {
                 // IdType can be one of:
@@ -189,20 +220,20 @@ where
                 // Next, determine what type we have here...
                 // if the next token is a double-colon then we
                 // have EnumValueStmt
-                let mut is_enum = false;
-                if let Some(tok) = inputs.peek() {
-                    match tok.ty {
-                        Ty::PunctDoubleColon => {
-                            is_enum = true;
-                        }
-                        _ => {}
-                    }
-                }
+                // let mut is_enum = false;
+                // if let Some(tok) = inputs.peek() {
+                //     match tok.ty {
+                //         Ty::PunctDoubleColon => {
+                //             is_enum = true;
+                //         }
+                //         _ => {}
+                //     }
+                // }
 
-                if is_enum {
-                    println!("is_enum=true");
-                    todo!("ExprParser is missing enum support");
-                }
+                // if is_enum {
+                //     println!("is_enum=true");
+                //     todo!("ExprParser is missing enum support");
+                // }
 
                 // This should take the entire `Type {}` value call
                 // and is either a StructValueStmt or TupleValueStmt
@@ -231,11 +262,32 @@ where
                 // add the IdType back
                 group.push(tok);
 
-                let struct_value =
-                    StructValueStmt::parse(&mut group).expect("unable to parse StructValueStmt");
-                Ok(Expr::Value(ValueStmt {
-                    value: Value::Struct(struct_value),
-                }))
+                let expr = if group.contains(&Token { ty: Ty::PunctColon }) {
+                    // StructValueStmt
+                    let struct_value = StructValueStmt::parse(&mut group)
+                        .expect("unable to parse StructValueStmt");
+                    Ok(Expr::Value(ValueStmt {
+                        value: Value::Struct(struct_value),
+                    }))
+                } else if group.contains(&Token {
+                    ty: Ty::PunctDoubleColon,
+                }) {
+                    // EnumValueStmt
+                    let enum_value =
+                        EnumValueStmt::parse(&mut group).expect("unable to parse EnumValueStmt");
+                    Ok(Expr::Value(ValueStmt {
+                        value: Value::Enum(enum_value),
+                    }))
+                } else {
+                    // TupleValueStmt
+                    let tup_value =
+                        TupleValueStmt::parse(&mut group).expect("unable to parse TupleValueStmt");
+                    Ok(Expr::Value(ValueStmt {
+                        value: Value::Tuple(tup_value),
+                    }))
+                };
+
+                expr
             }
 
             Ty::PunctParenL => {

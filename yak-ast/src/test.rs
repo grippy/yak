@@ -1,9 +1,11 @@
 #[cfg(test)]
-use crate::pratt::{NoError, PrattError, PrattParser};
+use crate::expr::pratt::{NoError, PrattError, PrattParser};
 #[cfg(test)]
 use crate::{
-    expr::ExprParser, AssignOp, AssignStmt, Ast, ConstStmt, Expr, ExprStmt, Op, StructFieldStmt,
-    StructFieldValueStmt, StructStmt, StructValueStmt, TypeStmt, Value, ValueStmt, VarTypeStmt,
+    expr::expr::ExprParser, AssignOp, AssignStmt, Ast, Block, BlockStmt, ConstStmt, Expr, ExprStmt,
+    FuncBodyStmt, FuncInputArgTypeStmt, FuncInputTypeStmt, FuncOutputTypeStmt, FuncStmt,
+    FuncTypeStmt, Op, ReturnStmt, StructFieldStmt, StructFieldValueStmt, StructStmt,
+    StructValueStmt, TypeStmt, Value, ValueStmt, VarTypeStmt,
 };
 #[cfg(test)]
 use yak_lexer::token::TokenType as Ty;
@@ -132,7 +134,7 @@ fn test_var_basic_string() {
         },
     };
     assert_eq!(ast.parsed.errors.len(), 0);
-    assert_eq!(ast.parsed.constants.get(0), Some(expected));
+    assert_eq!(ast.parsed.consts.get(0), Some(expected));
 }
 
 #[test]
@@ -155,7 +157,7 @@ fn test_var_basic_int() {
     let mut ast = Ast::from_source(src);
     let _ = ast.parse();
     assert_eq!(ast.parsed.errors.len(), 0);
-    assert_eq!(ast.parsed.constants.get(0), Some(expected));
+    assert_eq!(ast.parsed.consts.get(0), Some(expected));
 }
 
 #[test]
@@ -185,7 +187,7 @@ fn test_var_basic_uint() {
     let mut ast = Ast::from_source(src.as_str());
     let _ = ast.parse();
     assert_eq!(ast.parsed.errors.len(), 0);
-    assert_eq!(ast.parsed.constants.get(0), Some(expected));
+    assert_eq!(ast.parsed.consts.get(0), Some(expected));
 }
 
 #[test]
@@ -208,7 +210,7 @@ fn test_var_basic_float() {
     let mut ast = Ast::from_source(src);
     let _ = ast.parse();
     assert_eq!(ast.parsed.errors.len(), 0);
-    assert_eq!(ast.parsed.constants.get(0), Some(expected));
+    assert_eq!(ast.parsed.consts.get(0), Some(expected));
 }
 
 #[test]
@@ -238,7 +240,7 @@ fn test_var_basic_boolean() {
     let mut ast = Ast::from_source(src);
     let _ = ast.parse();
     assert_eq!(ast.parsed.errors.len(), 0);
-    assert_eq!(ast.parsed.constants.get(0), Some(expected));
+    assert_eq!(ast.parsed.consts.get(0), Some(expected));
 }
 
 #[test]
@@ -308,7 +310,7 @@ const struct_var =
     let mut ast = Ast::from_source(src);
     let _ = ast.parse();
     assert_eq!(ast.parsed.errors.len(), 0);
-    assert_eq!(ast.parsed.constants.get(0), Some(expected));
+    assert_eq!(ast.parsed.consts.get(0), Some(expected));
 }
 
 #[test]
@@ -412,7 +414,7 @@ const struct_var =
     let _ = ast.parse();
 
     assert_eq!(ast.parsed.errors.len(), 0);
-    assert_eq!(ast.parsed.constants.get(0), Some(expected));
+    assert_eq!(ast.parsed.consts.get(0), Some(expected));
 }
 
 #[test]
@@ -421,6 +423,7 @@ fn test_var_struct_enum_expr() {
 const struct_var =
   MyStruct
     field_enum: MyEnum::X
+    field_tuple: MyTuple { \"a\" \"b\" }
 ";
     // TODO: come back to this once Expr parsing is fully complete
     let _expected = &ConstStmt {
@@ -451,10 +454,10 @@ const struct_var =
         },
     };
 
-    let mut _ast = Ast::from_source(src);
-    // let _ = ast.parse();
+    let mut ast = Ast::from_source(src);
+    let _ = ast.parse();
     // assert_eq!(ast.parsed.errors.len(), 0);
-    // assert_eq!(ast.parsed.constants.get(0), Some(expected));
+    // assert_eq!(ast.parsed.consts.get(0), Some(expected));
 }
 
 #[test]
@@ -489,6 +492,140 @@ enum MyEnum
 ";
     let mut ast = Ast::from_source(src);
     let _ = ast.parse();
+}
+
+#[test]
+fn test_fn_simple() {
+    let src = "
+fn :fn1 {} String =>
+  return \"Hello\"
+";
+    let expected = &FuncStmt {
+        func_name: ":fn1".into(),
+        func_type: FuncTypeStmt {
+            is_self: false,
+            input_type: None,
+            output_type: Some(FuncOutputTypeStmt {
+                output_type: TypeStmt {
+                    type_name: "String".into(),
+                    generics: None,
+                },
+            }),
+        },
+        func_body: FuncBodyStmt {
+            blocks: [BlockStmt {
+                indent: 2,
+                blocks: [Block::Return(ReturnStmt {
+                    expr: ExprStmt {
+                        expr: Expr::Value(ValueStmt {
+                            value: Value::String("Hello".into()),
+                        }),
+                    },
+                    return_type: None,
+                })]
+                .to_vec(),
+                return_type: None,
+            }]
+            .to_vec(),
+        },
+    };
+
+    let mut ast = Ast::from_source(src);
+    let _ = ast.parse();
+    assert_eq!(ast.parsed.errors.len(), 0);
+    assert_eq!(ast.parsed.funcs.get(0), Some(expected));
+}
+
+#[test]
+fn test_fn_type_signature() {
+    let src = "
+fn :fn1 self {
+    a: String
+    b: int
+  } String =>
+  return \"Hello\"
+";
+
+    let expected = &FuncStmt {
+        func_name: ":fn1".into(),
+        func_type: FuncTypeStmt {
+            is_self: true,
+            input_type: Some(FuncInputTypeStmt {
+                args: [
+                    FuncInputArgTypeStmt {
+                        arg_name: "a".into(),
+                        arg_type: TypeStmt {
+                            type_name: "String".into(),
+                            generics: None,
+                        },
+                    },
+                    FuncInputArgTypeStmt {
+                        arg_name: "b".into(),
+                        arg_type: TypeStmt {
+                            type_name: "int32".into(),
+                            generics: None,
+                        },
+                    },
+                ]
+                .to_vec(),
+            }),
+            output_type: Some(FuncOutputTypeStmt {
+                output_type: TypeStmt {
+                    type_name: "String".into(),
+                    generics: None,
+                },
+            }),
+        },
+        func_body: FuncBodyStmt {
+            blocks: [BlockStmt {
+                indent: 2,
+                blocks: [Block::Return(ReturnStmt {
+                    expr: ExprStmt {
+                        expr: Expr::Value(ValueStmt {
+                            value: Value::String("Hello".into()),
+                        }),
+                    },
+                    return_type: None,
+                })]
+                .to_vec(),
+                return_type: None,
+            }]
+            .to_vec(),
+        },
+    };
+
+    let mut ast = Ast::from_source(src);
+    let _ = ast.parse();
+    assert_eq!(ast.parsed.errors.len(), 0);
+    assert_eq!(ast.parsed.funcs.get(0), Some(expected));
+}
+
+#[test]
+fn test_fn_blocks() {
+    let src = "
+fn :fn1 {} String =>
+  let a = \"a\"
+  let b = \"b\"
+  let c = \"b\"
+  let d = \"\"
+  if a == b then
+    a = \"b\"
+    d = \"one\"
+  elif a == c then
+    a = \"c\"
+    d = \"two\"
+  else
+    a = \"default\"
+    d = \"default\"
+
+  :println { arg1: \"hello\" arg2: \"world\" }
+  return d
+";
+
+    let mut ast = Ast::from_source(src);
+    let _ = ast.parse();
+    // assert_eq!(ast.parsed.errors.len(), 0);
+    // assert_eq!(ast.parsed.funcs.get(0), Some(expected));
 }
 
 #[test]

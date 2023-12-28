@@ -69,13 +69,9 @@ impl YakFile {
         // save remote and local paths
         self.remote_path = pkg_remote_file.to_string();
         self.local_path = pkg_local_file.clone();
-        info!("read file {}", &self.remote_path);
+        info!("get file {}", &self.remote_path);
         info!("write file {}", &self.local_path);
-        download_file(
-            &pkg_remote_file.to_string(),
-            &pkg_local_path,
-            &pkg_local_file,
-        )?;
+        download_file(&pkg_remote_file.to_string(), &pkg_local_file)?;
         Ok(())
     }
 }

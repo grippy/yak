@@ -1,4 +1,5 @@
 use anyhow::{Context, Result};
+use log::info;
 use std::path::{Component, Path, PathBuf};
 use std::{fs, fs::File, io::copy};
 
@@ -31,14 +32,21 @@ pub fn normalize_path(path: &Path) -> PathBuf {
     ret
 }
 
-pub fn download_file(url: &str, file_dir: &str, file_path: &str) -> Result<()> {
+pub fn download_file(url: &str, file_path: &str) -> Result<()> {
     // Send an HTTP GET request to the URL
     let mut response = reqwest::blocking::get(url)?;
 
-    // Create file path...
+    // Create file directory?
+    let file_dir = Path::new(&file_path)
+        .components()
+        .as_path()
+        .parent()
+        .unwrap();
+
     if !Path::new(file_dir).exists() {
+        info!("creating file directory {}", &file_dir.display());
         let _ = fs::create_dir_all(file_dir)
-            .with_context(|| format!("failed to create file directory: {}", file_dir))?;
+            .with_context(|| format!("failed to create file directory: {}", file_dir.display()))?;
     }
 
     // Create a new file to write the downloaded image to
