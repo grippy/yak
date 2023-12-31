@@ -86,12 +86,16 @@ pub(crate) fn call(args: &GetArgs) -> Result<()> {
     // get remote files...
     yak_pkg.get_remote_files()?;
 
+    // TODO: cache dependencies here
+
     // parse local package files...
     for pkg_file in yak_pkg.pkg_files {
         pkg_ast.parse_file(PathBuf::from(&pkg_file.local_path))?;
     }
 
-    info!("pkg_ast {:#?}", &pkg_ast);
+    info!("=============");
+    info!("{:#?}", &pkg_ast);
+    info!("=============");
 
     Ok(())
 }

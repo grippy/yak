@@ -2,6 +2,7 @@ package     "yak.demo"
 description "A simple demo"
 files {
   "./src/lib.yak"
+  "./src/funcs.yak"
 }
 dependencies {
   yak.pkg1 "../yak-pkg1"

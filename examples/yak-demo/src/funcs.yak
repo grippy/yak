@@ -1,0 +1,12 @@
+
+fn :noop {} =>
+  # nothing special
+
+# Parsing arg values of type tuple or struct values
+# is broken because expr parsing doesn't expect the inner {}
+fn :say_hello { val: String } String =>
+  const val = :format {
+    txt: "Hello, {}"
+    args: { val }
+  }
+  return val

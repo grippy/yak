@@ -47,8 +47,19 @@ pub(crate) fn call(args: &BuildArgs) -> Result<()> {
     if pkg_local_path.ends_with("/yak.pkg") {
         pkg_local_path = pkg_local_path.replace("/yak.pkg", "");
     }
-    let yak_pkg = parsed_pkg.into_yak_package(true, pkg_local_path, None);
+    let mut yak_pkg = parsed_pkg.into_yak_package(true, pkg_local_path, None)?;
     info!("{:?}", yak_pkg);
+
+    // TODO: cache dependencies here
+
+    // build src code
+    let pkg_files = yak_pkg.get_local_file_paths()?;
+    for pkg_file in pkg_files.into_iter() {
+        pkg_ast.parse_file(pkg_file)?;
+    }
+    info!("=============");
+    info!("{:#?}", &pkg_ast);
+    info!("=============");
 
     Ok(())
 }

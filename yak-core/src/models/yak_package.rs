@@ -1,8 +1,8 @@
 use crate::models::yak_version::YakVersion;
 use crate::utils::{download_file, normalize_path};
 use anyhow::Result;
-use log::info;
-use std::path::Path;
+use log::{debug, info};
+use std::path::{Path, PathBuf};
 use url::Url;
 
 #[derive(Debug, Default)]
@@ -39,6 +39,18 @@ impl YakPackage {
         }
 
         Ok(())
+    }
+
+    pub fn get_local_file_paths(&mut self) -> Result<Vec<PathBuf>> {
+        let paths = self
+            .pkg_files
+            .iter()
+            .map(|file| {
+                let path = PathBuf::from(format!("{}/{}", &self.pkg_local_path, &file.path));
+                normalize_path(path.as_path())
+            })
+            .collect();
+        Ok(paths)
     }
 }
 

@@ -73,23 +73,27 @@ Numbers
 
 ## Variables
 
-This is similar to how variables are defined in JavaScript ES6.
+This is similar to how variables are defined in JavaScript ES6. The syntax is similar to Rust. The type is inferred.
 
 ### Immutable
 
 ```rust
+const name = "value"
 const name: String = "value"
 ```
 
 ### Mutable
 
 ```rust
+let name = "value"
 let name: String = "value"
 ```
 
 ## Functions
 
 Function signatures are defined using the following syntax.
+
+### Static
 
 ```rust
 fn :func_name { arg1: Type1 arg2: Type2 ... } ReturnType =>
@@ -99,10 +103,21 @@ fn :func_name { arg1: Type1 arg2: Type2 ... } ReturnType =>
   return some_value
 ```
 
+### Instance
+
+Structs can implement instance methods.
+
+```rust
+fn :func_name self {} =>
+  ...
+```
+
+### Rules
+
 - Function names are prefixed with a colon (i.e. `:`).
 - Function arguments are separated by whitespace.
-- Function bodies are defined by the Fat Arrows.
-- Functions returns are explicit.
+- Function bodies are defined by the Fat Arrow.
+- Functions returns are explicit using the `return` keyword.
 
 ## Structs
 
@@ -133,6 +148,18 @@ Or, as a single line:
 let my_struct = MyStruct { field1: "value1" }
 ```
 
+### Method Implementation
+
+Implement static and instance methods on a Struct.
+
+```rust
+impl MyStruct
+  fn :fn_instance self {} =>
+    ...
+  fn :fn_static {} =>
+    ...
+```
+
 ## Traits
 
 ### Keyword
@@ -148,7 +175,11 @@ trait ^MyTrait1
   fn :func2 self { arg1: Type2 } String
 ```
 
-### Implementation
+## Trait Implementation
+
+### Keyword
+
+- `impl`
 
 ```rust
 impl MyStruct ^MyTrait1
@@ -190,6 +221,8 @@ const my_enum2 = MyEnum::StructType {
 
 ## Tuples
 
+TBD how this will end up.
+
 ### Keyword
 
 - `tuple`
@@ -197,18 +230,20 @@ const my_enum2 = MyEnum::StructType {
 ### Definition
 
 ```rust
-tuple TupleType { String String }
+tuple TupleType[String int]
 ```
 
 ### Value
 
 ```rust
-const my_tuple = TupleType { "a" "b" }
+const my_tuple = TupleType { "a" 1 }
+const val_string = my_tuple.0
+const val_int = my_tuple.1
 ```
 
 ## Lists
 
-TBD how these should work.
+TBD how this will end up.
 
 ### Keyword
 
@@ -216,15 +251,53 @@ TBD how these should work.
 
 ### Definition
 
+Using the keyword to define a List type.
+
 ```rust
 list ListType[String]
+```
+
+Or, Lists are just built-in Structs of type T.
+
+```rust
 type ListType = List[T]
 ```
 
 ### Value
 
 ```rust
-const my_list = ListType::from { "a" "b" }
+const my_list = ListType:from { "a" "b" }
+const val_first = my_list:get{0}
+```
+
+## Maps
+
+TBD how this will end up.
+
+### Keyword
+
+- `map`
+
+### Definition
+
+Using the keyword to define a Map type.
+
+```rust
+map MapType[String String]
+```
+
+Or, Maps are just built-in Structs with K and V types.
+
+```rust
+type MapType = Map[K V]
+```
+
+### Value
+
+```rust
+const key1 = "key1"
+let my_map = MapType:from { key1 "a" "key2" "b" }
+my_map.insert { key3 "c" "key4" "d" }
 ```
 
 ## Generics
