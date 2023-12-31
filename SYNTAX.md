@@ -31,9 +31,9 @@ To make parsing easier, we have some naming conventions that should be followed:
 
 ### Packages
 
-A package (i.e. `yak.pkg` file) is a unit of compilation that defines a name, version, dependencies, and what symbols to import and export.
+A package (i.e. `yak.pkg` file) is a unit of compilation that defines a name, version, source files, dependencies, and what symbols to import from dependencies and export from the package.
 
-Conceptually, these are similar to how modules work in Go and follow the same idea with how mapping dependencies work.
+Conceptually, these are similar to how modules work in Go and follow the same idea with how mapping dependencies work (i.e. packages are local or remotely located).
 
 Package syntax looks like this:
 
@@ -41,6 +41,11 @@ Package syntax looks like this:
 package     "pkg.name"
 description "A description goes here"
 version     "1.0.0"
+files {
+  "./src/file1.yak"
+  "./src/file2.yak"
+  "./src/file3.yak"
+}
 dependencies {
   pkg.name1 "../path"
   pkg.name2 "http://github.com/org1/repo1/pkg1"

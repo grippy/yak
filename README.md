@@ -20,8 +20,23 @@ See the [syntax defined here](./SYNTAX.md).
 2. AST Parsing
     - See [yak-ast TODO](./yak-ast/TODO.md) for done and needs work.
 3. AST -> IR
-4. IR -> LLVM
-5. Linking
+    - TBD
+5. IR Validation
+    - TBD: Type checks
+5. IR -> LLVM
+    - TBD
+6. Linking
+    - TBD
+
+# Unknowns
+
+This list is some of the big unknowns to figure out...
+
+- AST -> IR -> LLVM: what does each stage look like?
+- Memory management (gc vs lifetimes/borrow. Needs more research.)
+- Memory layouts (can we leverage Rust for this?)
+- String vs str: which one should we start with?
+- Runtime (what does this look like? Make it synchronous and see if we can leverage Rust threads/channels to start out)
 
 # Env Variables
 
@@ -61,13 +76,15 @@ Build the `yak.pkg` file in the current directory:
 yak-cli build
 ```
 
-Or, build some other package in a different directory:
+Or, build some other local package relative to the current directory:
 
 ```
 yak-cli build ../my/pkg1
 ```
 
 ## Get
+
+Download remote packages locally and build them.
 
 ```
 yak-cli get https://raw.githubusercontent.com/grippy/yak/master/examples/yak-pkg1
