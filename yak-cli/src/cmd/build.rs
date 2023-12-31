@@ -9,7 +9,7 @@ use yak_core::models::yak_env::YakEnv;
 #[derive(Args, Debug)]
 pub(crate) struct BuildArgs {
     /// Yak package folder path
-    #[arg(short, long, default_value_t = String::from("."))]
+    #[arg(index = 1, default_value_t = String::from("."))]
     path: String,
 }
 

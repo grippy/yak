@@ -31,7 +31,7 @@ fn download_file(url: &str, file_dir: &str, file_name: &str) -> Result<()> {
 #[derive(Args, Debug)]
 pub(crate) struct GetArgs {
     /// Download remote package path to the local cache
-    #[arg(short, long)]
+    #[arg(index = 1)]
     path: String,
 }
 

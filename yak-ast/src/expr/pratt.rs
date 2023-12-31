@@ -1,6 +1,8 @@
 // This code is copied from https://github.com/segeljakt/pratt/blob/master/src/lib.rs
 // in order to customize how the primary parsing works.
 
+// TODO: make errors compatible with Anyhow?
+
 #[derive(Copy, Clone)]
 pub enum Associativity {
     Left,

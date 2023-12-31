@@ -2,10 +2,11 @@
 use crate::expr::pratt::{NoError, PrattError, PrattParser};
 #[cfg(test)]
 use crate::{
-    expr::expr::ExprParser, AssignOp, AssignStmt, Ast, Block, BlockStmt, ConstStmt, Expr, ExprStmt,
-    FuncBodyStmt, FuncInputArgTypeStmt, FuncInputTypeStmt, FuncOutputTypeStmt, FuncStmt,
-    FuncTypeStmt, Op, ReturnStmt, StructFieldStmt, StructFieldValueStmt, StructStmt,
-    StructValueStmt, TypeStmt, Value, ValueStmt, VarTypeStmt,
+    expr::expr::ExprParser, ArithOp, AssignOp, AssignStmt, Ast, BinaryExprStmt, Block, BlockStmt,
+    ConstStmt, Expr, ExprStmt, FuncArgValueStmt, FuncBodyStmt, FuncInputArgTypeStmt,
+    FuncInputTypeStmt, FuncOutputTypeStmt, FuncStmt, FuncTypeStmt, FuncValueStmt, Op, ReturnStmt,
+    StructFieldStmt, StructFieldValueStmt, StructStmt, StructValueStmt, TypeStmt, Value, ValueStmt,
+    VarTypeStmt,
 };
 #[cfg(test)]
 use yak_lexer::token::TokenType as Ty;
@@ -258,6 +259,80 @@ fn test_var_basic_func() {
 }
 
 #[test]
+fn test_var_func_arg_expr() {
+    let src = "
+const result = :func1 {
+  a: a.b + b + c
+  b: (1 + 2) / 3
+}";
+
+    let expected = &ConstStmt {
+        assign: AssignStmt {
+            var_type: VarTypeStmt {
+                var_name: "result".into(),
+                var_type: None,
+            },
+            op: Op::Assign(AssignOp::Eq),
+            expr: ExprStmt {
+                expr: Expr::Value(ValueStmt {
+                    value: Value::Func(FuncValueStmt {
+                        func_name: ":func1".into(),
+                        args: [
+                            FuncArgValueStmt {
+                                arg_name: "a".into(),
+                                arg_value: ExprStmt {
+                                    expr: Expr::Binary(BinaryExprStmt {
+                                        lhs: Box::new(Expr::Binary(BinaryExprStmt {
+                                            lhs: Box::new(Expr::Value(ValueStmt {
+                                                value: Value::Package("a.b".into()),
+                                            })),
+                                            op: Op::Arith(ArithOp::Add),
+                                            rhs: Box::new(Expr::Value(ValueStmt {
+                                                value: Value::Var("b".into()),
+                                            })),
+                                        })),
+                                        op: Op::Arith(ArithOp::Add),
+                                        rhs: Box::new(Expr::Value(ValueStmt {
+                                            value: Value::Var("c".into()),
+                                        })),
+                                    }),
+                                },
+                            },
+                            FuncArgValueStmt {
+                                arg_name: "b".into(),
+                                arg_value: ExprStmt {
+                                    expr: Expr::Binary(BinaryExprStmt {
+                                        lhs: Box::new(Expr::Binary(BinaryExprStmt {
+                                            lhs: Box::new(Expr::Value(ValueStmt {
+                                                value: Value::Int(1),
+                                            })),
+                                            op: Op::Arith(ArithOp::Add),
+                                            rhs: Box::new(Expr::Value(ValueStmt {
+                                                value: Value::Int(2),
+                                            })),
+                                        })),
+                                        op: Op::Arith(ArithOp::Div),
+                                        rhs: Box::new(Expr::Value(ValueStmt {
+                                            value: Value::Int(3),
+                                        })),
+                                    }),
+                                },
+                            },
+                        ]
+                        .to_vec(),
+                    }),
+                }),
+            },
+        },
+    };
+
+    let mut ast = Ast::from_source(src);
+    let _ = ast.parse();
+    assert_eq!(ast.parsed.errors.len(), 0);
+    assert_eq!(ast.parsed.consts.get(0), Some(expected));
+}
+
+#[test]
 fn test_var_basic_unary_var() {
     let src = "const unary_var = -var1";
     let mut _ast = Ast::from_source(src);
@@ -418,15 +493,14 @@ const struct_var =
 }
 
 #[test]
-fn test_var_struct_enum_expr() {
+fn test_var_struct_field_expr() {
     let src = "
 const struct_var =
   MyStruct
-    field_enum: MyEnum::X
-    field_tuple: MyTuple { \"a\" \"b\" }
+    field1: 1 + 2 / var1
+    field2: var1
 ";
-    // TODO: come back to this once Expr parsing is fully complete
-    let _expected = &ConstStmt {
+    let expected = &ConstStmt {
         assign: AssignStmt {
             var_type: VarTypeStmt {
                 var_name: "struct_var".into(),
@@ -440,19 +514,86 @@ const struct_var =
                             type_name: "MyStruct".into(),
                             generics: None,
                         },
-                        fields: vec![StructFieldValueStmt {
-                            field_name: "field_enum".into(),
-                            field_value: ExprStmt {
-                                expr: Expr::Value(ValueStmt {
-                                    value: Value::Bool(false),
-                                }),
+                        fields: [
+                            StructFieldValueStmt {
+                                field_name: "field1".into(),
+                                field_value: ExprStmt {
+                                    expr: Expr::Binary(BinaryExprStmt {
+                                        lhs: Box::new(Expr::Value(ValueStmt {
+                                            value: Value::Int(1),
+                                        })),
+                                        op: Op::Arith(ArithOp::Add),
+                                        rhs: Box::new(Expr::Binary(BinaryExprStmt {
+                                            lhs: Box::new(Expr::Value(ValueStmt {
+                                                value: Value::Int(2),
+                                            })),
+                                            op: Op::Arith(ArithOp::Div),
+                                            rhs: Box::new(Expr::Value(ValueStmt {
+                                                value: Value::Var("var1".into()),
+                                            })),
+                                        })),
+                                    }),
+                                },
                             },
-                        }],
+                            StructFieldValueStmt {
+                                field_name: "field2".into(),
+                                field_value: ExprStmt {
+                                    expr: Expr::Value(ValueStmt {
+                                        value: Value::Var("var1".into()),
+                                    }),
+                                },
+                            },
+                        ]
+                        .to_vec(),
                     }),
                 }),
             },
         },
     };
+
+    let mut ast = Ast::from_source(src);
+    let _ = ast.parse();
+    assert_eq!(ast.parsed.errors.len(), 0);
+    assert_eq!(ast.parsed.consts.get(0), Some(expected));
+}
+
+#[test]
+fn test_var_struct_enum_expr() {
+    let src = "
+const struct_var =
+  MyStruct
+    field_enum_simple: MyEnum::X
+    field_enum_struct: MyEnum::MyStruct { a: \"a\" b: \"b\" }
+    field_enum_tuple: MyEnum::MyTuple { \"a\" \"b\" }
+";
+    // TODO: come back to this once Expr parsing is fully complete
+    // let _expected = &ConstStmt {
+    //     assign: AssignStmt {
+    //         var_type: VarTypeStmt {
+    //             var_name: "struct_var".into(),
+    //             var_type: None,
+    //         },
+    //         op: Op::Assign(AssignOp::Eq),
+    //         expr: ExprStmt {
+    //             expr: Expr::Value(ValueStmt {
+    //                 value: Value::Struct(StructValueStmt {
+    //                     struct_type: TypeStmt {
+    //                         type_name: "MyStruct".into(),
+    //                         generics: None,
+    //                     },
+    //                     fields: vec![StructFieldValueStmt {
+    //                         field_name: "field_enum".into(),
+    //                         field_value: ExprStmt {
+    //                             expr: Expr::Value(ValueStmt {
+    //                                 value: Value::Bool(false),
+    //                             }),
+    //                         },
+    //                     }],
+    //                 }),
+    //             }),
+    //         },
+    //     },
+    // };
 
     let mut ast = Ast::from_source(src);
     let _ = ast.parse();

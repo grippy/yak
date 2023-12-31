@@ -7,6 +7,8 @@ use crate::{
 use yak_lexer::token::TokenType as Ty;
 use yak_lexer::Token;
 
+// Precedence value ordering
+// (not all of these are currently implemented)
 // 0  non-binding operators
 // 10 assignment operators = *= /= //= += -= ...
 // >> 20 ternary operator ? : (can't use ? for returning errors)
@@ -20,7 +22,7 @@ use yak_lexer::Token;
 // 100 infix operator + -
 // 110 infix operator * / % //
 // 120 infix operator **
-// 130 cast type as
+// >> 130 cast type as
 // 140	unary operators
 //      + - !
 // 150 return errors ?
@@ -216,24 +218,6 @@ where
                 //          - MyEnum::IdType { value1 value2 ... }
                 // - TupleValueStmt
                 //      - MyTuple { value1 value2 ... }
-
-                // Next, determine what type we have here...
-                // if the next token is a double-colon then we
-                // have EnumValueStmt
-                // let mut is_enum = false;
-                // if let Some(tok) = inputs.peek() {
-                //     match tok.ty {
-                //         Ty::PunctDoubleColon => {
-                //             is_enum = true;
-                //         }
-                //         _ => {}
-                //     }
-                // }
-
-                // if is_enum {
-                //     println!("is_enum=true");
-                //     todo!("ExprParser is missing enum support");
-                // }
 
                 // This should take the entire `Type {}` value call
                 // and is either a StructValueStmt or TupleValueStmt

@@ -1701,7 +1701,30 @@ impl Parse for StructValueStmt {
         while let Some(next) = stack.pop() {
             match next.ty {
                 Ty::IdVar(_) => {
-                    if field.len() > 0 {
+                    // Handle expr statements by checking
+                    // if the next token is a colon. This make everything
+                    // after the colon and expression
+                    let mut next_colon = false;
+                    if let Some(next) = stack.pop() {
+                        match next.ty {
+                            Ty::PunctColon => {
+                                next_colon = true;
+                            }
+                            _ => {}
+                        }
+                        stack.push(next);
+                    }
+                    if next_colon && field.len() > 0 {
+                        // fields with enum struct values
+                        // might end up with a PunctBraceR
+                        // and we need to remove them
+                        if let Some(last) = field.pop() {
+                            match last.ty {
+                                // eat PunctBraceR
+                                Ty::PunctBraceR => {}
+                                _ => field.push(last),
+                            }
+                        }
                         field.reverse();
                         struct_value_stmt
                             .fields
@@ -1721,6 +1744,15 @@ impl Parse for StructValueStmt {
 
         // flush field if it has a length
         if field.len() > 0 {
+            // fields with enum struct values
+            // might end up with a PunctBraceR
+            // and we need to remove them
+            if let Some(last) = field.pop() {
+                match last.ty {
+                    Ty::PunctBraceR => {}
+                    _ => field.push(last),
+                }
+            }
             field.reverse();
             struct_value_stmt
                 .fields
@@ -1891,7 +1923,18 @@ impl Parse for FuncValueStmt {
         while let Some(next) = stack.pop() {
             match next.ty {
                 Ty::IdVar(_) => {
-                    if arg.len() > 0 {
+                    let mut next_colon = false;
+                    if let Some(next) = stack.pop() {
+                        match next.ty {
+                            Ty::PunctColon => {
+                                next_colon = true;
+                            }
+                            _ => {}
+                        }
+                        stack.push(next);
+                    }
+
+                    if next_colon && arg.len() > 0 {
                         arg.reverse();
                         func_val.args.push(FuncArgValueStmt::parse(&mut arg)?);
                         if arg.len() > 0 {

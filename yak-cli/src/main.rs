@@ -13,13 +13,13 @@ const YAK_VERSION: &'static str = "0.0.1";
 #[command(about = "Yak Programming Tools", long_about = None)]
 struct Cli {
     /// Set yak home directory
-    #[clap(long, default_value = "~/.yak", env = "YAK_HOME")]
+    #[clap(long, default_value = "~/.yak", env = "YAK_HOME", global = true)]
     yak_home: String,
     /// Set default log-level
-    #[clap(long, default_value = "info", env = "YAK_LOG")]
+    #[clap(long, default_value = "info", env = "YAK_LOG", global = true)]
     yak_log: String,
     /// Set yak version
-    #[clap(long, default_value = YAK_VERSION, env = "YAK_VERSION")]
+    #[clap(long, default_value = YAK_VERSION, env = "YAK_VERSION", global = true)]
     yak_version: String,
 
     #[command(subcommand)]
