@@ -6,6 +6,11 @@ pub mod token;
 use regex::Regex;
 use token::TokenType;
 
+#[cfg(not(test))]
+use log::{debug, info};
+#[cfg(test)]
+use std::{println as debug, println as info};
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Token {
     // TODO: disable Span (need to rework this)
@@ -29,18 +34,41 @@ pub struct Span {
 const COMMENT_PATTERN: &str = r"^#(.*)$";
 const NUMBER_PATTERN: &str = r"^[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)$";
 
+//
 // Identity patterns
-const PACKAGE_PATTERN: &str = r"^[a-z]([a-z0-9_]*(\.{1}[a-z0-9_]+)*)";
+//
 
-// TODO: all of these can have an optional package identity prefix
+// Package identities
+const PACKAGE_PATTERN: &str = r"^[a-z]([a-z0-9_]*(\.{1}[a-z0-9_]+)*)$";
+const PACKAGE_FUNC_PATTERN: &str =
+    r"^([a-z]([a-z0-9_]*(\.{1}[a-z0-9_]+)*))?(\:[a-z]([a-zA-Z0-9_])*?)$";
+const PACKAGE_TYPE_PATTERN: &str =
+    r"^([a-z]([a-z0-9_]*(\.{1}[a-z0-9_]+)*)\.)?([A-Z]([a-zA-Z0-9_])*?)$";
+const PACKAGE_TRAIT_PATTERN: &str =
+    r"^([a-z]([a-z0-9_]*(\.{1}[a-z0-9_]+)*))?(\^[A-Z]([a-zA-Z0-9_])*?)$";
+const PACKAGE_VAR_PATTERN: &str =
+    r"^([a-z]([a-z0-9_]*(\.{1}[a-z0-9_]+)*)\.)?([a-z_]([a-zA-Z0-9_])*?)$";
+
+// Type Identities
 const TYPE_PATTERN: &str = r"^([A-Z]([a-zA-Z0-9_])*?)$";
+
+// Trait Identities
 const TRAIT_PATTERN: &str = r"^(\^[A-Z]([a-zA-Z0-9_])*?)$";
+
+// Variable Identities and variable with package prefixes are ambiguous
 const VAR_PATTERN: &str = r"^([a-z_]([a-zA-Z0-9_])*?)$";
+
+// Function Identities
 const FUNC_PATTERN: &str = r"^(\:[a-z]([a-zA-Z0-9_])*?)$";
 
 static ASCII_LOWER: [char; 26] = [
     'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's',
     't', 'u', 'v', 'w', 'x', 'y', 'z',
+];
+
+static ASCII_UPPER: [char; 26] = [
+    'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S',
+    'T', 'U', 'V', 'W', 'X', 'Y', 'Z',
 ];
 
 static ASCII_DIGIT: [char; 10] = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
@@ -49,6 +77,10 @@ static ASCII_DIGIT: [char; 10] = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '
 struct PatternMatcher {
     comment_id: Regex,
     package_id: Regex,
+    package_func_id: Regex,
+    package_type_id: Regex,
+    package_trait_id: Regex,
+    package_var_id: Regex,
     var_id: Regex,
     func_id: Regex,
     type_id: Regex,
@@ -61,6 +93,10 @@ impl PatternMatcher {
         PatternMatcher {
             comment_id: Regex::new(COMMENT_PATTERN).unwrap(),
             package_id: Regex::new(PACKAGE_PATTERN).unwrap(),
+            package_func_id: Regex::new(PACKAGE_FUNC_PATTERN).unwrap(),
+            package_type_id: Regex::new(PACKAGE_TYPE_PATTERN).unwrap(),
+            package_trait_id: Regex::new(PACKAGE_TRAIT_PATTERN).unwrap(),
+            package_var_id: Regex::new(PACKAGE_VAR_PATTERN).unwrap(),
             var_id: Regex::new(VAR_PATTERN).unwrap(),
             func_id: Regex::new(FUNC_PATTERN).unwrap(),
             type_id: Regex::new(TYPE_PATTERN).unwrap(),
@@ -81,18 +117,23 @@ impl PatternMatcher {
         if self.var_id.is_match(&this) {
             return Some(TokenType::IdVar(this.to_owned()));
         }
-
-        // Package
-        // package is a subset of variable
-        // single-word packages will resolve as Token::VarId
-        // example: my.package.rules
-        if self.package_id.is_match(&this) {
-            return Some(TokenType::IdPackage(this.to_owned()));
+        // This is ambiguous with packages
+        // with the exception when the variable starts with
+        // an underscore... For consistency, resolve as a package
+        // and we can figure out later if it's package + variable or not
+        if this.contains("._") {
+            if self.package_var_id.is_match(&this) {
+                return Some(TokenType::IdVar(this.to_owned()));
+            }
         }
 
         // Function
         // example: :func1
         if self.func_id.is_match(&this) {
+            return Some(TokenType::IdFunc(this.to_owned()));
+        }
+        // example: my.pkg:func1
+        if self.package_func_id.is_match(&this) {
             return Some(TokenType::IdFunc(this.to_owned()));
         }
 
@@ -101,11 +142,26 @@ impl PatternMatcher {
         if self.trait_id.is_match(&this) {
             return Some(TokenType::IdTrait(this.to_owned()));
         }
+        // example: my.pkg^MyType_1
+        if self.package_trait_id.is_match(&this) {
+            return Some(TokenType::IdTrait(this.to_owned()));
+        }
 
         // Type
         // example: MyType_1
         if self.type_id.is_match(&this) {
             return Some(TokenType::IdType(this.to_owned()));
+        }
+        // example: my.pkg.MyType_1
+        if self.package_type_id.is_match(&this) {
+            return Some(TokenType::IdType(this.to_owned()));
+        }
+
+        // Package
+        // single-word packages will resolve as Token::VarId
+        // example: my.package.rules
+        if self.package_id.is_match(&this) {
+            return Some(TokenType::IdPackage(this.to_owned()));
         }
 
         // Number
@@ -778,14 +834,17 @@ impl<'a> Lexer<'a> {
                         self.push_token(TokenType::Indent(indent), pos, ln, col);
                         indent_on = false;
                     }
-                    // flush buffer
+
+                    // This will flush the package if it exists as a prefix
+                    // and then the IdFunc is second token
                     self.buf_to_token(&mut buf, true, pos, ln, col);
 
-                    // match: : ::
+                    // match: : :: field: :func
                     if let Some(next) = self.stack.pop() {
                         let pair = [this, next];
                         let sym = &String::from_iter(pair)[..];
                         match sym {
+                            // match enum variant
                             "::" => {
                                 pos += 1;
                                 col += 1;
@@ -793,12 +852,13 @@ impl<'a> Lexer<'a> {
                                 prev = next;
                             }
                             _ => {
-                                // sniff :func here
-                                // if the next char is a-z
                                 if !ASCII_LOWER.contains(&next) {
+                                    // :
                                     self.stack.push(next);
                                     self.push_token(TokenType::PunctColon, pos, ln, col);
                                 } else {
+                                    // sniff :func here
+                                    // if the next char is a-z
                                     // take until space or newline
                                     pos += 1;
                                     col += 1;
@@ -839,17 +899,38 @@ impl<'a> Lexer<'a> {
                     // match: flush buffer
                     self.buf_to_token(&mut buf, true, pos, ln, col);
 
-                    // ^ ^=
+                    // ^ ^= ^Trait
                     if let Some(next) = self.stack.pop() {
                         let pair = [this, next];
                         let sym = &String::from_iter(pair)[..];
                         match sym {
+                            // Assign
                             "^=" => {
                                 pos += 1;
                                 col += 1;
                                 self.push_token(TokenType::OpAssignBitwiseXOr, pos, ln, col);
                                 prev = next;
                             }
+                            // ^Trait
+                            "^A" | "^B" | "^C" | "^D" | "^E" | "^F" | "^G" | "^H" | "^I" | "^J"
+                            | "^K" | "^L" | "^M" | "^N" | "^O" | "^P" | "^Q" | "^R" | "^S"
+                            | "^T" | "^U" | "^V" | "^W" | "^X" | "^Y" | "^Z" => {
+                                buf.push(this);
+                                buf.push(next);
+                                prev = next;
+                                while let Some(next) = self.stack.pop() {
+                                    if next == '\n' || next == ' ' {
+                                        self.stack.push(next);
+                                        break;
+                                    }
+                                    pos += 1;
+                                    col += 1;
+                                    buf.push(next);
+                                    prev = next;
+                                }
+                                self.buf_to_token(&mut buf, true, pos, ln, col);
+                            }
+                            // ^
                             _ => {
                                 self.stack.push(next);
                                 self.push_token(TokenType::OpBitwiseXOr, pos, ln, col);
@@ -971,6 +1052,8 @@ impl<'a> Lexer<'a> {
             self.buf_to_token(&mut buf, true, pos, ln, col);
             // println!("buf: {:?}", &buf);
         }
+
+        info!("Tokens {:#?}", self.tokens);
     }
 
     #[allow(unused_assignments)]
@@ -1197,12 +1280,13 @@ impl<'a> Lexer<'a> {
             "Option" => self.push_token(TokenType::BuiltInTypeOption, pos, line, col),
             "Self" => self.push_token(TokenType::BuiltInTypeSelf, pos, line, col),
             "Set" => self.push_token(TokenType::BuiltInTypeSet, pos, line, col),
-
-            // "" => Token::,
+            // Pattern
+            // "" => self.push_token(Token::..., pos, line, col),
             _ => {
                 if !flush {
                     return;
                 }
+                // debug!("buf_to_token this: {}", &this);
                 if let Some(token_type) = self.matcher.resolve(this) {
                     self.push_token(token_type, pos, line, col)
                 } else {

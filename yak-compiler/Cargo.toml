@@ -1,0 +1,14 @@
+[package]
+name = "yak-compiler"
+version = "0.0.1"
+edition = "2021"
+
+[dependencies]
+anyhow = { version = "1.0" }
+log = { version = "0.4.20" }
+inkwell = { git = "https://github.com/TheDan64/inkwell", tag = "0.2.0", features = [
+    "llvm14-0",
+] }
+yak-ast = { path = "../yak-ast" }
+yak-core = { path = "../yak-core" }
+yak-lexer = { path = "../yak-lexer" }

@@ -4,10 +4,12 @@ version     "0.0.0"
 files {
   "./src/const.yak"
   "./src/enum.yak"
+  "./src/fn.yak"
   "./src/struct.yak"
 }
 export {
   hello
+  :my_func
   MyEnum
   MyStruct
 }

@@ -59,7 +59,7 @@ fn special_pipe() {
 
 #[test]
 fn special_carrot() {
-    let source = "^ ^=";
+    let source = "^ ^= ^Trait1";
     let mut lexer = Lexer::from_source(source);
     lexer.parse();
     // println!("tokens: {:#?}", lexer.tokens);
@@ -69,6 +69,10 @@ fn special_carrot() {
         Token { ty: Sp },
         Token {
             ty: OpAssignBitwiseXOr,
+        },
+        Token { ty: Sp },
+        Token {
+            ty: IdTrait("^Trait1".into()),
         },
     ];
     assert_eq!(lexer.tokens, expected);
@@ -357,7 +361,8 @@ fn literals() {
 
 #[test]
 fn identities() {
-    let source = " _var1 var2 pkg1 my.pkg2 Type1 ^Trait1 :func1";
+    let source =
+        " _var1 my.pkg._var1 var2 pkg1 my.pkg2 Type1 my.pkg.Type1 ^Trait1 my.pkg^Trait1 :func1 my.pkg:func1";
     let mut lexer = Lexer::from_source(source);
     let _ = lexer.parse();
     // println!("tokens: {:#?}", lexer.tokens);
@@ -365,6 +370,10 @@ fn identities() {
         Token { ty: Indent(1) },
         Token {
             ty: IdVar("_var1".into()),
+        },
+        Token { ty: Sp },
+        Token {
+            ty: IdVar("my.pkg._var1".into()),
         },
         Token { ty: Sp },
         Token {
@@ -383,11 +392,29 @@ fn identities() {
             ty: IdType("Type1".into()),
         },
         Token { ty: Sp },
-        Token { ty: OpBitwiseXOr },
         Token {
-            ty: IdType("Trait1".into()),
+            ty: IdType("my.pkg.Type1".into()),
         },
         Token { ty: Sp },
+        // Token { ty: OpBitwiseXOr },
+        Token {
+            ty: IdTrait("^Trait1".into()),
+        },
+        Token { ty: Sp },
+        Token {
+            ty: IdPackage("my.pkg".into()),
+        },
+        Token {
+            ty: IdTrait("^Trait1".into()),
+        },
+        Token { ty: Sp },
+        Token {
+            ty: IdFunc(":func1".into()),
+        },
+        Token { ty: Sp },
+        Token {
+            ty: IdPackage("my.pkg".into()),
+        },
         Token {
             ty: IdFunc(":func1".into()),
         },
@@ -734,9 +761,8 @@ trait ^MyTrait
         Token { ty: Indent(0) },
         Token { ty: KwTrait },
         Token { ty: Sp },
-        Token { ty: OpBitwiseXOr },
         Token {
-            ty: IdType("MyTrait".into()),
+            ty: IdTrait("^MyTrait".into()),
         },
         Token { ty: NL },
         Token { ty: Indent(4) },
@@ -793,9 +819,9 @@ impl Struct1 ^MyTrait
             ty: IdType("Struct1".into()),
         },
         Token { ty: Sp },
-        Token { ty: OpBitwiseXOr },
+        // Token { ty: OpBitwiseXOr },
         Token {
-            ty: IdType("MyTrait".into()),
+            ty: IdTrait("^MyTrait".into()),
         },
         Token { ty: NL },
         Token { ty: Indent(2) },
@@ -1170,9 +1196,8 @@ export {
             ty: IdVar("b".into()),
         },
         Token { ty: Sp },
-        Token { ty: OpBitwiseXOr },
         Token {
-            ty: IdType("C".into()),
+            ty: IdTrait("^C".into()),
         },
         Token { ty: Sp },
         Token {
@@ -1223,9 +1248,8 @@ export {
         Token { ty: PunctBraceR },
         Token { ty: NL },
         Token { ty: Indent(2) },
-        Token { ty: OpBitwiseXOr },
         Token {
-            ty: IdType("Trait1".into()),
+            ty: IdTrait("^Trait1".into()),
         },
         Token { ty: NL },
         Token { ty: Indent(2) },

@@ -4,9 +4,10 @@ use crate::expr::pratt::{NoError, PrattError, PrattParser};
 use crate::{
     expr::expr::ExprParser, ArithOp, AssignOp, AssignStmt, Ast, BinaryExprStmt, Block, BlockStmt,
     ConstStmt, Expr, ExprStmt, FuncArgValueStmt, FuncBodyStmt, FuncInputArgTypeStmt,
-    FuncInputTypeStmt, FuncOutputTypeStmt, FuncStmt, FuncTypeStmt, FuncValueStmt, Op, ReturnStmt,
-    StructFieldStmt, StructFieldValueStmt, StructStmt, StructValueStmt, TypeStmt, Value, ValueStmt,
-    VarTypeStmt,
+    FuncInputTypeStmt, FuncOutputTypeStmt, FuncStmt, FuncTypeStmt, FuncValueStmt, Op,
+    PackageDependencyStmt, PackageExportStmt, PackageFileStmt, PackageImportStmt, PackageStmt,
+    PackageSymbol, PackageSymbolStmt, ReturnStmt, StructFieldStmt, StructFieldValueStmt,
+    StructStmt, StructValueStmt, TypeStmt, Value, ValueStmt, VarTypeStmt,
 };
 #[cfg(test)]
 use yak_lexer::token::TokenType as Ty;
@@ -51,9 +52,105 @@ export {
   ^Trait1
 }
 ";
+
+    let expected = PackageStmt {
+        package_id: "\"my.pkg\"".into(),
+        description: "\"This is my description\"".into(),
+        version: "\"1.0.0\"".into(),
+        files: [
+            PackageFileStmt {
+                path: "\"./file1.yak\"".into(),
+            },
+            PackageFileStmt {
+                path: "\"./file2.yak\"".into(),
+            },
+            PackageFileStmt {
+                path: "\"./file3.yak\"".into(),
+            },
+        ]
+        .to_vec(),
+        dependencies: [
+            PackageDependencyStmt {
+                package_id: "local.pkg1".into(),
+                path: "\"http://github.com/yak-pkg/my.pkg\"".into(),
+            },
+            PackageDependencyStmt {
+                package_id: "pkg1".into(),
+                path: "\"http://github.com/yak-pkg/pkg1@v1\"".into(),
+            },
+            PackageDependencyStmt {
+                package_id: "some.pkg2".into(),
+                path: "\"http://github.com/yak-pkg/some-pkg2@v1\"".into(),
+            },
+        ]
+        .to_vec(),
+        imports: [PackageImportStmt {
+            package_id: "some.pkg1".into(),
+            as_package_id: None,
+            symbols: [
+                PackageSymbolStmt {
+                    symbol: PackageSymbol::Func(":func1".into()),
+                    as_symbol: None,
+                },
+                PackageSymbolStmt {
+                    symbol: PackageSymbol::Func(":func1".into()),
+                    as_symbol: Some(PackageSymbol::Func(":func_other".into())),
+                },
+                PackageSymbolStmt {
+                    symbol: PackageSymbol::Var("const_var1".into()),
+                    as_symbol: None,
+                },
+                PackageSymbolStmt {
+                    symbol: PackageSymbol::Var("const_var1".into()),
+                    as_symbol: Some(PackageSymbol::Var("const_var2".into())),
+                },
+                PackageSymbolStmt {
+                    symbol: PackageSymbol::Type("Type1".into()),
+                    as_symbol: None,
+                },
+                PackageSymbolStmt {
+                    symbol: PackageSymbol::Type("Type2".into()),
+                    as_symbol: Some(PackageSymbol::Type("TypeOther".into())),
+                },
+                PackageSymbolStmt {
+                    symbol: PackageSymbol::Trait("^Trait2".into()),
+                    as_symbol: Some(PackageSymbol::Trait("^TraitOther".into())),
+                },
+            ]
+            .to_vec(),
+        }]
+        .to_vec(),
+        exports: PackageExportStmt {
+            symbols: [
+                PackageSymbolStmt {
+                    symbol: PackageSymbol::Func(":func1".into()),
+                    as_symbol: None,
+                },
+                PackageSymbolStmt {
+                    symbol: PackageSymbol::Var("const_var1".into()),
+                    as_symbol: None,
+                },
+                PackageSymbolStmt {
+                    symbol: PackageSymbol::Type("Struct1".into()),
+                    as_symbol: None,
+                },
+                PackageSymbolStmt {
+                    symbol: PackageSymbol::Type("Enum1".into()),
+                    as_symbol: None,
+                },
+                PackageSymbolStmt {
+                    symbol: PackageSymbol::Trait("^Trait1".into()),
+                    as_symbol: None,
+                },
+            ]
+            .to_vec(),
+        },
+    };
+
     let mut ast = Ast::from_source(src);
     let _ = ast.parse_package();
-    println!("{:?}", ast);
+    assert_eq!(ast.parsed.errors.len(), 0);
+    assert_eq!(ast.parsed.package, expected);
 }
 
 #[cfg(test)]

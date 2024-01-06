@@ -1,0 +1,4 @@
+
+# Example main function
+fn :main { args: Args } =>
+  :say_hello { val: "Amigo" }

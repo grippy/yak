@@ -1549,6 +1549,19 @@ dependencies = [
  "reqwest",
  "url",
  "yak-ast",
+ "yak-compiler",
+ "yak-core",
+ "yak-lexer",
+]
+
+[[package]]
+name = "yak-compiler"
+version = "0.0.1"
+dependencies = [
+ "anyhow",
+ "inkwell",
+ "log",
+ "yak-ast",
  "yak-core",
  "yak-lexer",
 ]
@@ -1566,18 +1579,10 @@ dependencies = [
 
 [[package]]
 name = "yak-lexer"
-version = "0.1.0"
+version = "0.0.1"
 dependencies = [
+ "log",
  "regex",
-]
-
-[[package]]
-name = "yak-llvm"
-version = "0.1.0"
-dependencies = [
- "inkwell",
- "yak-ast",
- "yak-lexer",
 ]
 
 [[package]]

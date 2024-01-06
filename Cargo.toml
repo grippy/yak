@@ -4,8 +4,8 @@ members = [
     "./llvm-example",
     "./yak-ast",
     "./yak-cli",
+    "./yak-compiler",
     "./yak-core",
-    "./yak-llvm",
     "./yak-lexer",
     "./yak-std",
 ]

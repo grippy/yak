@@ -1,0 +1,17 @@
+package     "yak.demo.main"
+description "A simple demo binary"
+files {
+  "./src/main.yak"
+}
+dependencies {
+  yak.demo.lib "../yak-demo-lib"
+}
+import {
+  yak.main { Args }
+  yak.demo.lib {
+    :say_hello
+  }
+}
+export {
+  :main
+}

@@ -1,7 +1,7 @@
 use crate::models::yak_version::YakVersion;
 use crate::utils::{download_file, normalize_path};
 use anyhow::Result;
-use log::{debug, info};
+use log::info;
 use std::path::{Path, PathBuf};
 use url::Url;
 

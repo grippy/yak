@@ -1,5 +1,5 @@
-package     "yak.demo"
-description "A simple demo"
+package     "yak.demo.lib"
+description "A simple demo library"
 files {
   "./src/lib.yak"
   "./src/funcs.yak"
@@ -11,4 +11,8 @@ dependencies {
 import {
   yak.pkg1
   yak.pkg2
+}
+export {
+  :say_hello
+  MyStruct
 }

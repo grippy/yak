@@ -102,7 +102,7 @@ Function signatures are defined using the following syntax.
 
 ```rust
 fn :func_name { arg1: Type1 arg2: Type2 ... } ReturnType =>
-  const X =
+  const some_value =
     ReturnType
       hello: "world"
   return some_value
@@ -119,14 +119,16 @@ fn :func_name self {} =>
 
 ### Rules
 
-- Function names are prefixed with a colon (i.e. `:`).
+- Function names are prefixed with a colon (i.e. `:function_name`).
 - Function arguments are separated by whitespace.
-- Function bodies are defined by the Fat Arrow.
+- Function arguments don't support positional arguments and should include `arg: value` pairs when calling functions.
+- Function bodies are defined by the Fat Arrow `=>` punctuation.
 - Functions returns are explicit using the `return` keyword.
+- Functions must define a return type if calling the return keyword.
 
 ## Structs
 
-Structs borrow from Rust/Go syntax but with the optional the need for curly braces.
+Structs borrow from Rust/Go syntax but make curly braces optional.
 
 ### Keyword
 
@@ -151,6 +153,17 @@ let my_struct =
 Or, as a single line:
 ```rust
 let my_struct = MyStruct { field1: "value1" }
+```
+
+Read struct fields:
+
+```rust
+:println {
+  txt: "MyStruct.field1={}"
+  args: {
+    my_struct.field1
+  }
+}
 ```
 
 ### Method Implementation

@@ -4,6 +4,8 @@ use log::info;
 use std::fs;
 use std::path::PathBuf;
 use yak_ast::Ast;
+use yak_compiler::compiler::Compiler;
+use yak_compiler::hir::Hir;
 use yak_core::models::yak_env::YakEnv;
 
 #[derive(Args, Debug)]
@@ -57,9 +59,17 @@ pub(crate) fn call(args: &BuildArgs) -> Result<()> {
     for pkg_file in pkg_files.into_iter() {
         pkg_ast.parse_file(pkg_file)?;
     }
-    info!("=============");
+    info!("======AST=======");
     info!("{:#?}", &pkg_ast);
     info!("=============");
+
+    let hir = Hir::from_ast(&pkg_ast)?;
+    info!("======HIR=======");
+    info!("{:#?}", &hir);
+    info!("=============");
+
+    // Build
+    Compiler::build(hir)?;
 
     Ok(())
 }

@@ -19,6 +19,7 @@ See the [syntax defined here](./SYNTAX.md).
         - Source code file, line, and column location
 2. AST Parsing
     - See [yak-ast TODO](./yak-ast/TODO.md) for done and needs work.
+    - TBD: AST Validation
 3. AST -> IR
     - TBD
 5. IR Validation

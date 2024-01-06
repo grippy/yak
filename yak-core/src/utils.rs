@@ -3,6 +3,18 @@ use log::info;
 use std::path::{Component, Path, PathBuf};
 use std::{fs, fs::File, io::copy};
 
+// Strip quotes from start/end of AST strings
+pub fn clean_quotes(mut s: String) -> String {
+    if s.starts_with("\"") {
+        s = s.strip_prefix("\"").unwrap().to_string();
+    }
+    if s.ends_with("\"") {
+        s = s.strip_suffix("\"").unwrap().to_string();
+    }
+    s
+}
+
+// Normalize path
 pub fn normalize_path(path: &Path) -> PathBuf {
     // info!("normalize {:?}", &path);
     let mut components = path.components().peekable();
@@ -32,6 +44,7 @@ pub fn normalize_path(path: &Path) -> PathBuf {
     ret
 }
 
+// Download file
 pub fn download_file(url: &str, file_path: &str) -> Result<()> {
     // Send an HTTP GET request to the URL
     let mut response = reqwest::blocking::get(url)?;

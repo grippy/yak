@@ -505,13 +505,13 @@ trait ParseSelf {
 //
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct PackageStmt {
-    package_id: String,
+    pub package_id: String,
     description: String,
     version: String,
     files: Vec<PackageFileStmt>,
     dependencies: Vec<PackageDependencyStmt>,
-    imports: Vec<PackageImportStmt>,
-    exports: PackageExportStmt,
+    pub imports: Vec<PackageImportStmt>,
+    pub exports: PackageExportStmt,
 }
 
 impl PackageStmt {
@@ -696,22 +696,12 @@ impl Parse for PackageStmt {
                                 sym_stmt.symbol = PackageSymbol::Type(sym);
                                 pkg_stmt.exports.symbols.push(sym_stmt);
                             }
-                            // trait
-                            Ty::OpBitwiseXOr => {
-                                // we have a trait next...
-                                if let Some(next) = exports.pop() {
-                                    match next.ty {
-                                        Ty::IdType(ty) => {
-                                            let mut sym_stmt = PackageSymbolStmt::default();
-                                            sym_stmt.symbol =
-                                                PackageSymbol::Trait(format!("^{}", ty));
-                                            pkg_stmt.exports.symbols.push(sym_stmt);
-                                        }
-                                        _ => {
-                                            bail!("failed to parse package export. Expected IdType for ^Trait")
-                                        }
-                                    }
-                                }
+
+                            // Trait
+                            Ty::IdTrait(sym) => {
+                                let mut sym_stmt = PackageSymbolStmt::default();
+                                sym_stmt.symbol = PackageSymbol::Trait(sym);
+                                pkg_stmt.exports.symbols.push(sym_stmt);
                             }
                             Ty::PunctBraceR => {
                                 break;
@@ -878,25 +868,13 @@ impl Parse for PackageStmt {
                                                         }
                                                         imp_stmt.symbols.push(sym_stmt);
                                                     }
-                                                    // trait
-                                                    Ty::OpBitwiseXOr => {
-                                                        // we have a trait next...
+
+                                                    Ty::IdTrait(name) => {
                                                         let mut sym_stmt =
                                                             PackageSymbolStmt::default();
-                                                        // primary
-                                                        if let Some(next) = imports.pop() {
-                                                            match next.ty {
-                                                                Ty::IdType(ty) => {
-                                                                    sym_stmt.symbol =
-                                                                        PackageSymbol::Trait(
-                                                                            format!("^{}", ty),
-                                                                        );
-                                                                }
-                                                                _ => {
-                                                                    bail!("failed to parse package import. Expected IdType after OpBitwiseXOr for trait")
-                                                                }
-                                                            }
-                                                        }
+                                                        sym_stmt.symbol =
+                                                            PackageSymbol::Trait(name);
+
                                                         // check alias
                                                         if let Some(next) = imports.pop() {
                                                             match next.ty {
@@ -905,24 +883,19 @@ impl Parse for PackageStmt {
                                                                         imports.pop()
                                                                     {
                                                                         match next.ty {
-                                                                    Ty::OpBitwiseXOr => {
-                                                                        if let Some(next) = imports.pop() {
-                                                                            match next.ty {
-                                                                                Ty::IdType(ty) => {
-                                                                                    sym_stmt.as_symbol =
-                                                                                        Some(PackageSymbol::Trait(
-                                                                                            format!("^{}", ty),
-                                                                                        ));
-                                                                                    imp_stmt.symbols.push(sym_stmt);
-                                                                                }
-                                                                                _ => {
-                                                                                    bail!("failed to parse package import. KwAs doesn't match type Trait")
-                                                                                }
+                                                                            Ty::IdTrait(name) => {
+                                                                                sym_stmt.as_symbol =
+                                                                                Some(PackageSymbol::Trait(name));
+                                                                                imp_stmt
+                                                                                    .symbols
+                                                                                    .push(sym_stmt);
+                                                                            }
+                                                                            _ => {
+                                                                                bail!("failed to parse package import. KwAs doesn't match IdTrait")
                                                                             }
                                                                         }
-                                                                    },
-                                                                    _ => bail!("failed to parse package import. Expected KwAs of IdType type to match")
-                                                                }
+                                                                    } else {
+                                                                        bail!("failed to parse package import. Expected KwAs of IdType type to match")
                                                                     }
                                                                 }
                                                                 _ => {
@@ -1119,8 +1092,8 @@ impl Into<YakSymbol> for PackageSymbolStmt {
 // Constant statement
 //
 #[derive(Debug, Clone, Default, PartialEq)]
-struct ConstStmt {
-    assign: AssignStmt,
+pub struct ConstStmt {
+    pub assign: AssignStmt,
 }
 
 impl Parse for ConstStmt {
@@ -1139,10 +1112,10 @@ impl Parse for ConstStmt {
 // Assignment statement
 //
 #[derive(Debug, Clone, Default, PartialEq)]
-struct AssignStmt {
-    var_type: VarTypeStmt,
-    op: Op,
-    expr: ExprStmt,
+pub struct AssignStmt {
+    pub var_type: VarTypeStmt,
+    pub op: Op,
+    pub expr: ExprStmt,
 }
 
 impl Parse for AssignStmt {
@@ -1172,9 +1145,9 @@ impl Parse for AssignStmt {
 // Variable type statement
 //
 #[derive(Debug, Clone, Default, PartialEq)]
-struct VarTypeStmt {
-    var_name: String,
-    var_type: Option<TypeStmt>,
+pub struct VarTypeStmt {
+    pub var_name: String,
+    pub var_type: Option<TypeStmt>,
 }
 
 impl Parse for VarTypeStmt {
@@ -1213,8 +1186,8 @@ impl Parse for VarTypeStmt {
 // Type statement
 //
 #[derive(Debug, Clone, Default, PartialEq)]
-struct TypeStmt {
-    type_name: String,
+pub struct TypeStmt {
+    pub type_name: String,
     generics: Option<Box<Vec<TypeStmt>>>,
 }
 impl Parse for TypeStmt {
@@ -1569,9 +1542,9 @@ impl Default for EnumVariantValueType {
 // Struct statements
 //
 #[derive(Debug, Clone, Default, PartialEq)]
-struct StructStmt {
-    struct_type: TypeStmt,
-    fields: Vec<StructFieldStmt>,
+pub struct StructStmt {
+    pub struct_type: TypeStmt,
+    pub fields: Vec<StructFieldStmt>,
 }
 
 impl Parse for StructStmt {
@@ -2290,10 +2263,10 @@ impl Default for UnaryOp {
 // Function statements
 //
 #[derive(Debug, Clone, Default, PartialEq)]
-struct FuncStmt {
-    func_name: String,
-    func_type: FuncTypeStmt,
-    func_body: FuncBodyStmt,
+pub struct FuncStmt {
+    pub func_name: String,
+    pub func_type: FuncTypeStmt,
+    pub func_body: FuncBodyStmt,
 }
 
 impl Parse for FuncStmt {
