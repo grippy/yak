@@ -72,6 +72,7 @@ pub struct Parsed {
     pub funcs: Vec<FuncStmt>,
     pub impl_traits: Vec<ImplTraitStmt>,
     pub lets: Vec<LetStmt>,
+    pub primitives: Vec<PrimitiveStmt>,
     pub structs: Vec<StructStmt>,
     pub traits: Vec<TraitStmt>,
     pub tests: Vec<TestStmt>,
@@ -181,6 +182,7 @@ impl Ast {
                 | Ty::KwFn
                 | Ty::KwImpl
                 | Ty::KwLet
+                | Ty::KwPrimitive
                 | Ty::KwStruct
                 | Ty::KwTest
                 | Ty::KwTestCase
@@ -228,6 +230,16 @@ impl Ast {
                                 Ok(let_stmt) => {
                                     debug!("let_stmt {:#?}", let_stmt);
                                     self.parsed.lets.push(let_stmt);
+                                }
+                                Err(err) => return Some(err),
+                            }
+                        }
+                        Ty::KwPrimitive => {
+                            let stmt = PrimitiveStmt::parse(&mut stack);
+                            match stmt {
+                                Ok(primitive_stmt) => {
+                                    debug!("primitive_stmt {:#?}", primitive_stmt);
+                                    self.parsed.primitives.push(primitive_stmt);
                                 }
                                 Err(err) => return Some(err),
                             }
@@ -506,10 +518,10 @@ trait ParseSelf {
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct PackageStmt {
     pub package_id: String,
-    description: String,
-    version: String,
-    files: Vec<PackageFileStmt>,
-    dependencies: Vec<PackageDependencyStmt>,
+    pub description: String,
+    pub version: String,
+    pub files: Vec<PackageFileStmt>,
+    pub dependencies: Vec<PackageDependencyStmt>,
     pub imports: Vec<PackageImportStmt>,
     pub exports: PackageExportStmt,
 }
@@ -696,7 +708,6 @@ impl Parse for PackageStmt {
                                 sym_stmt.symbol = PackageSymbol::Type(sym);
                                 pkg_stmt.exports.symbols.push(sym_stmt);
                             }
-
                             // Trait
                             Ty::IdTrait(sym) => {
                                 let mut sym_stmt = PackageSymbolStmt::default();
@@ -707,7 +718,16 @@ impl Parse for PackageStmt {
                                 break;
                             }
                             _ => {
-                                bail!("failed to parse package export. Expected PunctBraceR")
+                                if Ty::primitives().contains(&next.ty) {
+                                    let mut sym_stmt = PackageSymbolStmt::default();
+                                    let sym: String = next.ty.into();
+                                    sym_stmt.symbol = PackageSymbol::Primitive(sym);
+                                    pkg_stmt.exports.symbols.push(sym_stmt);
+                                    continue;
+                                } else if Ty::builtins().contains(&next.ty) {
+                                }
+
+                                bail!("failed to parse package export. Expected PunctBraceR. Found {:?}", next)
                             }
                         }
                     }
@@ -983,9 +1003,9 @@ impl Parse for PackageStmt {
 }
 
 #[derive(Debug, Clone, Default, PartialEq)]
-struct PackageDependencyStmt {
-    package_id: String,
-    path: String,
+pub struct PackageDependencyStmt {
+    pub package_id: String,
+    pub path: String,
 }
 
 impl Into<YakDependency> for PackageDependencyStmt {
@@ -998,8 +1018,8 @@ impl Into<YakDependency> for PackageDependencyStmt {
 }
 
 #[derive(Debug, Clone, Default, PartialEq)]
-struct PackageFileStmt {
-    path: String,
+pub struct PackageFileStmt {
+    pub path: String,
 }
 
 impl Into<YakFile> for PackageFileStmt {
@@ -1011,12 +1031,12 @@ impl Into<YakFile> for PackageFileStmt {
 }
 
 #[derive(Debug, Clone, Default, PartialEq)]
-struct PackageImportStmt {
-    package_id: String,
-    as_package_id: Option<String>,
+pub struct PackageImportStmt {
+    pub package_id: String,
+    pub as_package_id: Option<String>,
     // we need to explicitly import symbols
     // from a package to make them available
-    symbols: Vec<PackageSymbolStmt>,
+    pub symbols: Vec<PackageSymbolStmt>,
 }
 
 impl Into<YakImport> for PackageImportStmt {
@@ -1030,7 +1050,7 @@ impl Into<YakImport> for PackageImportStmt {
 }
 
 #[derive(Debug, Clone, Default, PartialEq)]
-struct PackageExportStmt {
+pub struct PackageExportStmt {
     symbols: Vec<PackageSymbolStmt>,
 }
 
@@ -1043,8 +1063,11 @@ impl Into<YakExport> for PackageExportStmt {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-enum PackageSymbol {
+pub enum PackageSymbol {
     None,
+    // Box<PackageSymbol>
+    Builtin(String),
+    Primitive(String),
     Var(String),
     Func(String),
     Type(String),
@@ -1061,6 +1084,8 @@ impl Into<Symbol> for PackageSymbol {
     fn into(self) -> Symbol {
         match self {
             PackageSymbol::None => Symbol::None,
+            PackageSymbol::Builtin(s) => Symbol::Builtin(clean_quotes(s)),
+            PackageSymbol::Primitive(s) => Symbol::Primitive(clean_quotes(s)),
             PackageSymbol::Var(s) => Symbol::Var(clean_quotes(s)),
             PackageSymbol::Func(s) => Symbol::Func(clean_quotes(s)),
             PackageSymbol::Type(s) => Symbol::Type(clean_quotes(s)),
@@ -1070,9 +1095,9 @@ impl Into<Symbol> for PackageSymbol {
 }
 
 #[derive(Debug, Clone, Default, PartialEq)]
-struct PackageSymbolStmt {
-    symbol: PackageSymbol,
-    as_symbol: Option<PackageSymbol>,
+pub struct PackageSymbolStmt {
+    pub symbol: PackageSymbol,
+    pub as_symbol: Option<PackageSymbol>,
 }
 
 impl Into<YakSymbol> for PackageSymbolStmt {
@@ -1085,6 +1110,27 @@ impl Into<YakSymbol> for PackageSymbolStmt {
             None
         };
         yak_sym
+    }
+}
+
+//
+// Primitive statement
+//
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct PrimitiveStmt {
+    pub primitive_type: TypeStmt,
+}
+
+impl Parse for PrimitiveStmt {
+    fn parse(mut stack: &mut Vec<Token>) -> Result<Self, Error> {
+        debug!("PrimitiveStmt parse {:?}", stack);
+        let mut primitive_stmt = PrimitiveStmt::default();
+        primitive_stmt.primitive_type = TypeStmt::parse(&mut stack)?;
+        Ok(primitive_stmt)
+    }
+    fn validate(&self) -> Result<(), Error> {
+        // this should validate that the op is an assignment eq
+        Ok(())
     }
 }
 
@@ -1188,7 +1234,7 @@ impl Parse for VarTypeStmt {
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct TypeStmt {
     pub type_name: String,
-    generics: Option<Box<Vec<TypeStmt>>>,
+    pub generics: Option<Box<Vec<TypeStmt>>>,
 }
 impl Parse for TypeStmt {
     // TypeStmt
@@ -1275,9 +1321,9 @@ impl Parse for TypeStmt {
 // Enum statement
 //
 #[derive(Debug, Clone, Default, PartialEq)]
-struct EnumStmt {
-    enum_name: String,
-    variants: Vec<EnumVariantStmt>,
+pub struct EnumStmt {
+    pub enum_name: String,
+    pub variants: Vec<EnumVariantStmt>,
 }
 
 impl Parse for EnumStmt {
@@ -1356,7 +1402,7 @@ impl Parse for EnumStmt {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-enum EnumVariantType {
+pub enum EnumVariantType {
     None,
     Struct(EnumStructStmt),
     Tuple(TupleStmt),
@@ -1369,9 +1415,9 @@ impl Default for EnumVariantType {
 }
 
 #[derive(Debug, Clone, Default, PartialEq)]
-struct EnumVariantStmt {
-    variant_name: String,
-    variant_type: EnumVariantType,
+pub struct EnumVariantStmt {
+    pub variant_name: String,
+    pub variant_type: EnumVariantType,
 }
 
 impl Parse for EnumVariantStmt {
@@ -1462,8 +1508,8 @@ impl Parse for EnumVariantStmt {
 }
 
 #[derive(Debug, Clone, Default, PartialEq)]
-struct EnumStructStmt {
-    fields: Vec<StructFieldStmt>,
+pub struct EnumStructStmt {
+    pub fields: Vec<StructFieldStmt>,
 }
 
 impl Parse for EnumStructStmt {
@@ -1507,10 +1553,10 @@ impl Parse for EnumStructStmt {
 }
 
 #[derive(Debug, Clone, Default, PartialEq)]
-struct EnumValueStmt {
-    enum_name: String,
-    variant_name: String,
-    variant_value_type: EnumVariantValueType,
+pub struct EnumValueStmt {
+    pub enum_name: String,
+    pub variant_name: String,
+    pub variant_value_type: EnumVariantValueType,
 }
 
 impl Parse for EnumValueStmt {
@@ -1526,7 +1572,7 @@ impl Parse for EnumValueStmt {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-enum EnumVariantValueType {
+pub enum EnumVariantValueType {
     None,
     Struct(Box<StructValueStmt>),
     Tuple(Box<TupleValueStmt>),
@@ -1593,9 +1639,9 @@ impl Parse for StructStmt {
 }
 
 #[derive(Debug, Clone, Default, PartialEq)]
-struct StructFieldStmt {
-    field_name: String,
-    field_type: TypeStmt,
+pub struct StructFieldStmt {
+    pub field_name: String,
+    pub field_type: TypeStmt,
 }
 
 impl Parse for StructFieldStmt {
@@ -1639,9 +1685,9 @@ impl Parse for StructFieldStmt {
 }
 
 #[derive(Debug, Clone, Default, PartialEq)]
-struct StructValueStmt {
-    struct_type: TypeStmt,
-    fields: Vec<StructFieldValueStmt>,
+pub struct StructValueStmt {
+    pub struct_type: TypeStmt,
+    pub fields: Vec<StructFieldValueStmt>,
 }
 
 impl Parse for StructValueStmt {
@@ -1741,9 +1787,9 @@ impl Parse for StructValueStmt {
 }
 
 #[derive(Debug, Clone, Default, PartialEq)]
-struct StructFieldValueStmt {
-    field_name: String,
-    field_value: ExprStmt,
+pub struct StructFieldValueStmt {
+    pub field_name: String,
+    pub field_value: ExprStmt,
 }
 
 impl Parse for StructFieldValueStmt {
@@ -1791,10 +1837,9 @@ impl Parse for StructFieldValueStmt {
 // Tuple statement
 //
 #[derive(Debug, Clone, Default, PartialEq)]
-struct TupleStmt {
-    types: Vec<TypeStmt>,
+pub struct TupleStmt {
+    pub types: Vec<TypeStmt>,
 }
-
 impl Parse for TupleStmt {
     fn parse(mut stack: &mut Vec<Token>) -> Result<Self, Error> {
         debug!("TupleStmt parse {:?}", stack);
@@ -1818,7 +1863,7 @@ impl Parse for TupleStmt {
 // Tuple value statement
 //
 #[derive(Debug, Clone, Default, PartialEq)]
-struct TupleValueStmt {
+pub struct TupleValueStmt {
     fields: Vec<TupleFieldValueStmt>,
 }
 
@@ -1835,8 +1880,8 @@ impl Parse for TupleValueStmt {
 }
 
 #[derive(Debug, Clone, Default, PartialEq)]
-struct TupleFieldValueStmt {
-    field_value: ExprStmt,
+pub struct TupleFieldValueStmt {
+    pub field_value: ExprStmt,
 }
 impl Parse for TupleFieldValueStmt {
     fn parse(stack: &mut Vec<Token>) -> Result<Self, Error> {
@@ -1853,9 +1898,9 @@ impl Parse for TupleFieldValueStmt {
 // Function value statements
 //
 #[derive(Debug, Clone, Default, PartialEq)]
-struct FuncValueStmt {
-    func_name: String,
-    args: Vec<FuncArgValueStmt>,
+pub struct FuncValueStmt {
+    pub func_name: String,
+    pub args: Vec<FuncArgValueStmt>,
 }
 
 impl Parse for FuncValueStmt {
@@ -1937,9 +1982,9 @@ impl Parse for FuncValueStmt {
 }
 
 #[derive(Debug, Clone, Default, PartialEq)]
-struct FuncArgValueStmt {
-    arg_name: String,
-    arg_value: ExprStmt,
+pub struct FuncArgValueStmt {
+    pub arg_name: String,
+    pub arg_value: ExprStmt,
 }
 
 impl Parse for FuncArgValueStmt {
@@ -1985,8 +2030,8 @@ impl Parse for FuncArgValueStmt {
 // Let statement
 //
 #[derive(Debug, Clone, Default, PartialEq)]
-struct LetStmt {
-    assign: AssignStmt,
+pub struct LetStmt {
+    pub assign: AssignStmt,
 }
 
 impl Parse for LetStmt {
@@ -2006,17 +2051,17 @@ impl Parse for LetStmt {
 // Variable statement
 //
 #[derive(Debug, Clone, Default, PartialEq)]
-struct VarStmt {
-    var_name: String,
-    assign: AssignStmt,
+pub struct VarStmt {
+    pub var_name: String,
+    pub assign: AssignStmt,
 }
 
 //
 // Expression statement
 //
 #[derive(Debug, Clone, Default, PartialEq)]
-struct ExprStmt {
-    expr: Expr,
+pub struct ExprStmt {
+    pub expr: Expr,
 }
 
 impl Parse for ExprStmt {
@@ -2040,7 +2085,7 @@ impl Parse for ExprStmt {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-enum Expr {
+pub enum Expr {
     // None is the default to avoid a stack-overflow
     // because both UnaryExprStmt or BinaryExprStmt define
     // left and/od right Expr.
@@ -2061,12 +2106,12 @@ impl Default for Expr {
 // Expression value statement
 //
 #[derive(Debug, Clone, Default, PartialEq)]
-struct ValueStmt {
-    value: Value,
+pub struct ValueStmt {
+    pub value: Value,
 }
 
 #[derive(Debug, Clone, PartialEq)]
-enum Value {
+pub enum Value {
     None,
     String(String),
     Bool(bool),
@@ -2096,20 +2141,20 @@ impl Default for Value {
 // Expression statements and operators
 //
 #[derive(Debug, Clone, Default, PartialEq)]
-struct UnaryExprStmt {
-    op: UnaryOp,
-    rhs: Box<Expr>,
+pub struct UnaryExprStmt {
+    pub op: UnaryOp,
+    pub rhs: Box<Expr>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq)]
-struct BinaryExprStmt {
-    lhs: Box<Expr>,
-    op: Op,
-    rhs: Box<Expr>,
+pub struct BinaryExprStmt {
+    pub lhs: Box<Expr>,
+    pub op: Op,
+    pub rhs: Box<Expr>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
-enum Op {
+pub enum Op {
     Assign(AssignOp),
     Boolean(BooleanOp),
     Logical(LogicalOp),
@@ -2124,7 +2169,7 @@ impl Default for Op {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-enum AssignOp {
+pub enum AssignOp {
     // =
     Eq,
     // +=
@@ -2160,7 +2205,7 @@ impl Default for AssignOp {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-enum BooleanOp {
+pub enum BooleanOp {
     // ==
     EqEq,
     // !=
@@ -2182,7 +2227,7 @@ impl Default for BooleanOp {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-enum LogicalOp {
+pub enum LogicalOp {
     // &&
     And,
     // ||
@@ -2198,7 +2243,7 @@ impl Default for LogicalOp {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-enum BitwiseOp {
+pub enum BitwiseOp {
     // &
     And,
     // |
@@ -2218,7 +2263,7 @@ impl Default for BitwiseOp {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-enum ArithOp {
+pub enum ArithOp {
     // +
     Add,
     // -
@@ -2242,7 +2287,7 @@ impl Default for ArithOp {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-enum UnaryOp {
+pub enum UnaryOp {
     // Default
     None,
     // +
@@ -2308,10 +2353,10 @@ impl Parse for FuncStmt {
 }
 
 #[derive(Debug, Clone, Default, PartialEq)]
-struct FuncTypeStmt {
-    is_self: bool,
-    input_type: Option<FuncInputTypeStmt>,
-    output_type: Option<FuncOutputTypeStmt>,
+pub struct FuncTypeStmt {
+    pub is_self: bool,
+    pub input_type: Option<FuncInputTypeStmt>,
+    pub output_type: Option<FuncOutputTypeStmt>,
 }
 
 impl Parse for FuncTypeStmt {
@@ -2375,8 +2420,8 @@ impl Parse for FuncTypeStmt {
 }
 
 #[derive(Debug, Clone, Default, PartialEq)]
-struct FuncInputTypeStmt {
-    args: Vec<FuncInputArgTypeStmt>,
+pub struct FuncInputTypeStmt {
+    pub args: Vec<FuncInputArgTypeStmt>,
 }
 
 impl Parse for FuncInputTypeStmt {
@@ -2424,9 +2469,9 @@ impl Parse for FuncInputTypeStmt {
 }
 
 #[derive(Debug, Clone, Default, PartialEq)]
-struct FuncInputArgTypeStmt {
-    arg_name: String,
-    arg_type: TypeStmt,
+pub struct FuncInputArgTypeStmt {
+    pub arg_name: String,
+    pub arg_type: TypeStmt,
 }
 
 impl Parse for FuncInputArgTypeStmt {
@@ -2468,8 +2513,8 @@ impl Parse for FuncInputArgTypeStmt {
 }
 
 #[derive(Debug, Clone, Default, PartialEq)]
-struct FuncOutputTypeStmt {
-    output_type: TypeStmt,
+pub struct FuncOutputTypeStmt {
+    pub output_type: TypeStmt,
 }
 
 impl Parse for FuncOutputTypeStmt {
@@ -2485,8 +2530,8 @@ impl Parse for FuncOutputTypeStmt {
 }
 
 #[derive(Debug, Clone, Default, PartialEq)]
-struct FuncBodyStmt {
-    blocks: Vec<BlockStmt>,
+pub struct FuncBodyStmt {
+    pub blocks: Vec<BlockStmt>,
 }
 
 impl Parse for FuncBodyStmt {
@@ -2516,7 +2561,7 @@ impl Parse for FuncBodyStmt {
                     // and could span multiple lines (for example if/elif/else)
                     // we need to take until the next indent with the same value
                     let mut block_stack = take_all_until_match_any(stack, vec![Ty::Indent(indent)]);
-                    println!("block_stack before: {:?}", &block_stack);
+                    // println!("block_stack before: {:?}", &block_stack);
 
                     if block_stack.contains(&Token { ty: Ty::KwIf }) {
                         debug!(
@@ -2580,10 +2625,10 @@ impl Parse for FuncBodyStmt {
 // Block statements
 //
 #[derive(Debug, Clone, Default, PartialEq)]
-struct BlockStmt {
+pub struct BlockStmt {
     indent: usize,
-    blocks: Vec<Block>,
-    return_type: Option<TypeStmt>,
+    pub blocks: Vec<Block>,
+    pub return_type: Option<TypeStmt>,
 }
 
 impl ParseSelf for BlockStmt {
@@ -2659,6 +2704,7 @@ impl ParseSelf for BlockStmt {
                     let block = Block::Expr(expr_stmt);
                     self.blocks.push(block);
                 }
+                Ty::Comment(_) => {}
                 _ => {
                     // unexpected token
                     bail!("unexpected token parsing BlockStmt: {:?}", &tok.ty);
@@ -2674,7 +2720,7 @@ impl ParseSelf for BlockStmt {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-enum Block {
+pub enum Block {
     None,
     Assign(AssignStmt),
     Block(Box<BlockStmt>),
@@ -2699,9 +2745,9 @@ impl Default for Block {
 // Return statement
 //
 #[derive(Debug, Clone, Default, PartialEq)]
-struct ReturnStmt {
-    expr: ExprStmt,
-    return_type: Option<TypeStmt>,
+pub struct ReturnStmt {
+    pub expr: ExprStmt,
+    pub return_type: Option<TypeStmt>,
 }
 
 impl Parse for ReturnStmt {
@@ -2722,14 +2768,14 @@ impl Parse for ReturnStmt {
 // If statements
 //
 #[derive(Debug, Clone, Default, PartialEq)]
-struct IfStmt {
+pub struct IfStmt {
     indent: usize,
     // if ...
-    if_cond: IfConditionStmt,
+    pub if_cond: IfConditionStmt,
     // elif ...
-    elif_cond: Vec<IfConditionStmt>,
+    pub elif_cond: Vec<IfConditionStmt>,
     // else ...
-    else_cond: Option<IfElseStmt>,
+    pub else_cond: Option<IfElseStmt>,
 }
 
 impl ParseSelf for IfStmt {
@@ -2778,10 +2824,10 @@ impl ParseSelf for IfStmt {
 }
 
 #[derive(Debug, Clone, Default, PartialEq)]
-struct IfConditionStmt {
+pub struct IfConditionStmt {
     indent: usize,
-    condition: ConditionStmt,
-    blocks: Vec<BlockStmt>,
+    pub condition: ConditionStmt,
+    pub blocks: Vec<BlockStmt>,
 }
 
 impl ParseSelf for IfConditionStmt {
@@ -2821,9 +2867,9 @@ impl ParseSelf for IfConditionStmt {
 }
 
 #[derive(Debug, Clone, Default, PartialEq)]
-struct IfElseStmt {
+pub struct IfElseStmt {
     indent: usize,
-    blocks: Vec<BlockStmt>,
+    pub blocks: Vec<BlockStmt>,
 }
 
 impl ParseSelf for IfElseStmt {
@@ -2849,8 +2895,8 @@ impl ParseSelf for IfElseStmt {
 
 // ConditionStmt
 #[derive(Debug, Clone, Default, PartialEq)]
-struct ConditionStmt {
-    expr: ExprStmt,
+pub struct ConditionStmt {
+    pub expr: ExprStmt,
 }
 
 impl Parse for ConditionStmt {

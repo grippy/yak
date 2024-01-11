@@ -7,5 +7,6 @@ members = [
     "./yak-compiler",
     "./yak-core",
     "./yak-lexer",
+    "./yak-pkg",
     "./yak-std",
 ]

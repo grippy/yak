@@ -1552,6 +1552,7 @@ dependencies = [
  "yak-compiler",
  "yak-core",
  "yak-lexer",
+ "yak-pkg",
 ]
 
 [[package]]
@@ -1583,6 +1584,19 @@ version = "0.0.1"
 dependencies = [
  "log",
  "regex",
+]
+
+[[package]]
+name = "yak-pkg"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "log",
+ "url",
+ "yak-ast",
+ "yak-compiler",
+ "yak-core",
+ "yak-lexer",
 ]
 
 [[package]]

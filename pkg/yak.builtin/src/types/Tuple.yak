@@ -1,0 +1,5 @@
+builtin Tuple
+
+# TBD this might need to be a special keyword
+# to account for positional types
+# struct Tuple [?...]

@@ -429,6 +429,7 @@ fn comment() {
     let _ = lexer.parse();
     // println!("tokens: {:#?}", lexer.tokens);
     let expected = vec![
+        Token { ty: Indent(0) },
         Token {
             ty: Comment("# this my comment".into()),
         },
@@ -787,7 +788,7 @@ trait ^MyTrait
         Token { ty: PunctBraceR },
         Token { ty: Sp },
         Token {
-            ty: BuiltInTypeSelf,
+            ty: SpecialTypeSelf,
         },
         Token {
             ty: PunctDoubleColon,
@@ -835,7 +836,7 @@ impl Struct1 ^MyTrait
         Token { ty: PunctBraceR },
         Token { ty: Sp },
         Token {
-            ty: BuiltInTypeSelf,
+            ty: SpecialTypeSelf,
         },
         Token {
             ty: PunctDoubleColon,
@@ -887,6 +888,7 @@ else
         Token { ty: Sp },
         Token { ty: KwThen },
         Token { ty: NL },
+        Token { ty: Indent(2) },
         Token {
             ty: Comment("# gt zero".into()),
         },
@@ -906,6 +908,7 @@ else
         Token { ty: Sp },
         Token { ty: KwThen },
         Token { ty: NL },
+        Token { ty: Indent(2) },
         Token {
             ty: Comment("# lt zero".into()),
         },
@@ -913,6 +916,7 @@ else
         Token { ty: Indent(0) },
         Token { ty: KwElse },
         Token { ty: NL },
+        Token { ty: Indent(2) },
         Token {
             ty: Comment("# zero".into()),
         },
@@ -959,6 +963,7 @@ match x
         Token { ty: Sp },
         Token { ty: PunctFatArrow },
         Token { ty: NL },
+        Token { ty: Indent(4) },
         Token {
             ty: Comment("# is X".into()),
         },
@@ -968,6 +973,7 @@ match x
         Token { ty: Sp },
         Token { ty: PunctFatArrow },
         Token { ty: NL },
+        Token { ty: Indent(4) },
         Token {
             ty: Comment("# default".into()),
         },

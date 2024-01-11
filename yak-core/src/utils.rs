@@ -62,7 +62,7 @@ pub fn download_file(url: &str, file_path: &str) -> Result<()> {
             .with_context(|| format!("failed to create file directory: {}", file_dir.display()))?;
     }
 
-    // Create a new file to write the downloaded image to
+    // Create a new file to write the downloaded file to
     let fd = PathBuf::from(&file_path);
     let mut file = File::create(fd)?;
 

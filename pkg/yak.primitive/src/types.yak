@@ -1,0 +1,14 @@
+primitive bool
+primitive byte
+primitive char
+primitive int16
+primitive int32
+primitive int64
+primitive int8
+primitive int
+primitive str
+primitive uint16
+primitive uint32
+primitive uint64
+primitive uint8
+primitive uint

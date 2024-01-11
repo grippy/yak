@@ -1,0 +1,4 @@
+builtin Maybe[A B]
+struct Maybe[A B]
+  a: A
+  b: B

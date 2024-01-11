@@ -22,9 +22,35 @@ pub struct YakPackage {
 }
 
 impl YakPackage {
-    // iterate all dependencies and cache
-    // them in the pkg_local_path directory
-    pub fn get_remote_deps(&mut self) {}
+    // returns a list of all remote dependency urls
+    // - remote path + relative dep.path
+    // - remote dep.path
+    pub fn get_remote_dep_urls(&mut self) -> Result<Vec<Url>> {
+        let mut urls = vec![];
+        if self.pkg_remote_path.is_none() {
+            return Ok(urls);
+        }
+        let mut pkg_remote_path = self.pkg_remote_path.clone().unwrap();
+        if !pkg_remote_path.ends_with("/") {
+            pkg_remote_path += "/";
+        }
+        for pkg_dep in self.pkg_dependencies.iter() {
+            // default to remote + relative path
+            let mut pkg_remote_url = Url::parse(&pkg_remote_path)?;
+            pkg_remote_url = pkg_remote_url.join(&pkg_dep.path)?;
+
+            // or use pkg dep path if already remote
+            if pkg_dep.path.starts_with("http://") || pkg_dep.path.starts_with("https://") {
+                pkg_remote_url = Url::parse(&pkg_dep.path)?;
+            }
+            urls.push(pkg_remote_url)
+        }
+        Ok(urls)
+    }
+
+    pub fn get_local_dep_paths(&mut self) -> Result<Vec<PathBuf>> {
+        Ok(vec![])
+    }
 
     // iterate all files and cache
     // them in the pkg_local_path directory
@@ -37,7 +63,6 @@ impl YakPackage {
         for pkg_file in &mut self.pkg_files {
             pkg_file.get_remote_file(pkg_local_path.clone(), pkg_remote_path.clone())?
         }
-
         Ok(())
     }
 
@@ -92,6 +117,8 @@ impl YakFile {
 pub struct YakDependency {
     pub pkg_id: String,
     pub path: String,
+    pub local_path: String,
+    pub remote_path: String,
 }
 
 #[derive(Debug, Default)]
@@ -117,6 +144,8 @@ pub struct YakExport {
 #[derive(Debug)]
 pub enum Symbol {
     None,
+    Builtin(String),
+    Primitive(String),
     Var(String),
     Func(String),
     Type(String),

@@ -10,7 +10,7 @@ use inkwell::types::BasicMetadataTypeEnum;
 use inkwell::AddressSpace;
 // use inkwell::values::{BasicMetadataValueEnum, FloatValue, FunctionValue, PointerValue};
 use inkwell::values::FunctionValue;
-use log::info;
+use log::{error, info};
 use std::fs;
 use yak_core::types::name::Name;
 
@@ -81,6 +81,7 @@ impl<'a, 'ctx> Compiler<'a, 'ctx> {
                 }
             }
             Err(err) => {
+                error!("LLVM module verify issue...");
                 bail!(err.to_string());
             }
         }

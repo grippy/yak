@@ -1,0 +1,22 @@
+package     "yak.builtin"
+description "Yak builtin types and functions"
+files {
+  "./src/types/List.yak"
+  "./src/types/Map.yak"
+  "./src/types/Maybe.yak"
+  "./src/types/None.yak"
+  "./src/types/Option.yak"
+  "./src/types/Set.yak"
+  "./src/types/String.yak"
+  "./src/types/Tuple.yak"
+}
+export {
+  List
+  Maybe
+  Map
+  None
+  Option
+  Set
+  String
+  Tuple
+}

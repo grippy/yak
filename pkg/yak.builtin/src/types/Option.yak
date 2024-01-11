@@ -1,0 +1,7 @@
+# Define Option[T] as a builtin type
+builtin Option[T]
+
+# Optional types
+enum Option[T]
+  None
+  Some { T }

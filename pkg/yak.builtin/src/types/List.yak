@@ -1,0 +1,3 @@
+builtin List[T]
+struct List[T]
+  items: T

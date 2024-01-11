@@ -1,0 +1,4 @@
+extern "C" void println(int64, int64, int64);
+
+fn :println { args: List[String] } =>
+  :call_c { fn: "println" args: args }

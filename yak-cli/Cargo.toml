@@ -10,7 +10,10 @@ log = { version = "0.4.20" }
 pretty_env_logger = { version = "0.5.0" }
 reqwest = { version = "0.11.23", features = ["blocking"] }
 url = { version = "2.5.0" }
+
+
 yak-ast = { path = "../yak-ast" }
 yak-compiler = { path = "../yak-compiler" }
 yak-core = { path = "../yak-core" }
 yak-lexer = { path = "../yak-lexer" }
+yak-pkg = { path = "../yak-pkg" }

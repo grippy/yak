@@ -8,5 +8,9 @@
     "editor.defaultFormatter": "tamasfe.even-better-toml",
     "editor.formatOnSave": true
   },
+  "[coffeescript]": {
+    "editor.tabSize": 2
+  },
+
   "rust-analyzer.showUnlinkedFileNotification": false
 }

@@ -1,7 +1,8 @@
 use anyhow::{bail, Context, Error, Result};
-use yak_ast::{Ast, ConstStmt, FuncStmt, StructStmt};
+use yak_ast::{Ast, ConstStmt, FuncInputArgTypeStmt, FuncInputTypeStmt, FuncStmt, StructStmt};
 use yak_core::types::constant::ConstantId;
-use yak_core::types::function::FunctionId;
+use yak_core::types::field::FieldId;
+use yak_core::types::function::{FunctionArgId, FunctionId};
 use yak_core::types::module::ModuleId;
 use yak_core::types::types::TypeId;
 use yak_core::utils::clean_quotes;
@@ -54,12 +55,19 @@ impl Lower<ConstStmt> for ConstantDef {
     }
 }
 
-struct LetDef {}
-struct EnumDef {}
+pub struct LetDef {}
+pub struct EnumDef {}
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct FunctionDef {
     pub function_id: FunctionId,
+    pub args: Vec<FunctionArg>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct FunctionArg {
+    pub arg_id: FunctionArgId,
+    pub type_id: TypeId,
 }
 
 impl Lower<FuncStmt> for FunctionDef {
@@ -69,15 +77,41 @@ impl Lower<FuncStmt> for FunctionDef {
         }
         let pkg_id = opts.pkg_id.unwrap();
         let func_name = stmt.func_name.clone();
-        let def = FunctionDef {
-            function_id: FunctionId::new(pkg_id, opts.struct_name, func_name),
+        // function def
+        let mut def = FunctionDef {
+            function_id: FunctionId::new(pkg_id.clone(), opts.struct_name, func_name),
+            args: vec![],
         };
+        // function args
+        if let Some(input_type) = &stmt.func_type.input_type {
+            input_type.args.iter().enumerate().try_fold(
+                &mut def.args,
+                |acc, (input_num, input_arg)| -> Result<&mut Vec<FunctionArg>> {
+                    let arg_name = input_arg.arg_name.clone();
+                    let arg_num = input_num;
+                    let arg_type = input_arg.arg_type.type_name.clone();
+                    let func_arg = FunctionArg {
+                        arg_id: FunctionArgId::new(arg_name, arg_num),
+                        type_id: TypeId::new(pkg_id.clone(), arg_type),
+                    };
+                    acc.push(func_arg);
+                    Ok(acc)
+                },
+            )?;
+        }
         Ok(def)
     }
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct StructDef {
+    pub type_id: TypeId,
+    pub fields: Vec<StructField>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct StructField {
+    pub field_id: FieldId,
     pub type_id: TypeId,
 }
 
@@ -86,17 +120,35 @@ impl Lower<StructStmt> for StructDef {
         if opts.pkg_id.is_none() {
             bail!("expected pkg_id value for StructStmt")
         }
+        // struct def
         let pkg_id = opts.pkg_id.unwrap();
         let struct_name = stmt.struct_type.type_name.clone();
-        let def = StructDef {
-            type_id: TypeId::new(pkg_id, struct_name),
+        let mut def = StructDef {
+            type_id: TypeId::new(pkg_id.clone(), struct_name),
+            fields: vec![],
         };
+        // struct fields
+        stmt.fields.iter().enumerate().try_fold(
+            &mut def.fields,
+            |acc, (field_num, field)| -> Result<&mut Vec<StructField>> {
+                let field_name = field.field_name.clone();
+                let field_type = field.field_type.type_name.clone();
+                let struct_field = StructField {
+                    field_id: FieldId::new(field_name, field_num),
+                    type_id: TypeId::new(pkg_id.clone(), field_type),
+                };
+                acc.push(struct_field);
+                Ok(acc)
+            },
+        )?;
+
         Ok(def)
     }
 }
 
-struct TraitDef {}
-struct ImplTraitDef {}
+pub struct TraitDef {}
+
+pub struct ImplTraitDef {}
 
 // High-level IR
 // Converts ast -> IR

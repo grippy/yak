@@ -1,6 +1,6 @@
 [package]
-name = "yak-ast"
-version = "0.0.0"
+name = "yak-pkg"
+version = "0.1.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -8,6 +8,8 @@ edition = "2021"
 [dependencies]
 anyhow = { version = "1.0" }
 log = { version = "0.4.20" }
-# yak-pkg = { path = "../yak-pkg" }
+url = { version = "2.5.0" }
+yak-ast = { path = "../yak-ast" }
+yak-compiler = { path = "../yak-compiler" }
 yak-core = { path = "../yak-core" }
 yak-lexer = { path = "../yak-lexer" }

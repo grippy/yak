@@ -220,8 +220,8 @@ Enums borrow from Rust syntax. You can define simple, struct, or tuple enum vari
 ```rust
 enum MyEnum
   SimpleType
-  StructType { field1: T1, ... }
-  TupleType { T1, T2, ... }
+  StructType { field1: T1 field2: T2 ... }
+  TupleType { T1 T2 ... }
 ```
 
 ### Value

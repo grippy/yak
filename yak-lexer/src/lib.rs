@@ -1,4 +1,5 @@
 #![allow(dead_code)]
+#![allow(unused_imports)]
 
 mod test;
 
@@ -287,6 +288,11 @@ impl<'a> Lexer<'a> {
                         prev = this;
                         continue;
                     }
+                    // clear indent
+                    if indent_on {
+                        self.push_token(TokenType::Indent(indent), pos, ln, col);
+                        indent_on = false;
+                    }
                     while let Some(next) = self.stack.pop() {
                         if next == '\n' {
                             self.stack.push(next);
@@ -297,6 +303,7 @@ impl<'a> Lexer<'a> {
                         buf.push(next);
                         prev = next;
                     }
+
                     self.buf_to_token(&mut buf, true, pos, ln, col);
                     continue;
                 }
@@ -1052,8 +1059,9 @@ impl<'a> Lexer<'a> {
             self.buf_to_token(&mut buf, true, pos, ln, col);
             // println!("buf: {:?}", &buf);
         }
-
-        info!("Tokens {:#?}", self.tokens);
+        info!("======TOK======");
+        info!("{:#?}", self.tokens);
+        info!("===============");
     }
 
     #[allow(unused_assignments)]
@@ -1118,6 +1126,7 @@ impl<'a> Lexer<'a> {
             // len=fixed
             TokenType::PrBool => _start = col - 4,
             TokenType::PrByte => _start = col - 4,
+            TokenType::PrChar => _start = col - 4,
             TokenType::PrFloat => _start = col - 5,
             TokenType::PrFloat32 => _start = col - 7,
             TokenType::PrFloat64 => _start = col - 7,
@@ -1127,7 +1136,6 @@ impl<'a> Lexer<'a> {
             TokenType::PrInt32 => _start = col - 5,
             TokenType::PrInt64 => _start = col - 5,
             TokenType::PrStr => _start = col - 3,
-            TokenType::PrString => _start = col - 6,
             TokenType::PrUInt => _start = col - 4,
             TokenType::PrUInt8 => _start = col - 5,
             TokenType::PrUInt16 => _start = col - 6,
@@ -1139,17 +1147,24 @@ impl<'a> Lexer<'a> {
             TokenType::KwCase => _start = col - 4,
             TokenType::KwConst => _start = col - 5,
             TokenType::KwContinue => _start = col - 8,
+            TokenType::KwDependencies => _start = col - 12,
+            TokenType::KwDescription => _start = col - 11,
             TokenType::KwElse => _start = col - 4,
             TokenType::KwElseIf => _start = col - 4, // elif
             TokenType::KwEnum => _start = col - 4,
+            TokenType::KwExport => _start = col - 6,
+            TokenType::KwFiles => _start = col - 5,
             TokenType::KwFn => _start = col - 2,
             TokenType::KwFor => _start = col - 3,
             TokenType::KwIf => _start = col - 2,
-            TokenType::KwIn => _start = col - 2,
             TokenType::KwImpl => _start = col - 4,
+            TokenType::KwImport => _start = col - 6,
+            TokenType::KwIn => _start = col - 2,
             TokenType::KwLazy => _start = col - 4,
             TokenType::KwLet => _start = col - 3,
             TokenType::KwMatch => _start = col - 5,
+            TokenType::KwPackage => _start = col - 7,
+            TokenType::KwPrimitive => _start = col - 8,
             TokenType::KwReturn => _start = col - 6,
             TokenType::KwSelf => _start = col - 4,
             TokenType::KwStruct => _start = col - 6,
@@ -1158,20 +1173,20 @@ impl<'a> Lexer<'a> {
             TokenType::KwThen => _start = col - 4,
             TokenType::KwTrait => _start = col - 5,
             TokenType::KwType => _start = col - 4,
-            TokenType::KwWhile => _start = col - 5,
-            TokenType::KwPackage => _start = col - 7,
-            TokenType::KwDescription => _start = col - 11,
             TokenType::KwVersion => _start = col - 7,
-            TokenType::KwDependencies => _start = col - 12,
-            TokenType::KwExport => _start = col - 6,
-            TokenType::KwImport => _start = col - 6,
-            TokenType::KwFiles => _start = col - 5,
-            TokenType::BuiltInTypeOption => _start = col - 6,
-            TokenType::BuiltInTypeList => _start = col - 4,
-            TokenType::BuiltInTypeMap => _start = col - 3,
-            TokenType::BuiltInTypeMaybe => _start = col - 5,
-            TokenType::BuiltInTypeSelf => _start = col - 4,
-            TokenType::BuiltInTypeSet => _start = col - 3,
+            TokenType::KwWhile => _start = col - 5,
+
+            // Builtin Types, Fn, const, etc
+            TokenType::BuiltinTypeList => _start = col - 4,
+            TokenType::BuiltinTypeMap => _start = col - 3,
+            TokenType::BuiltinTypeMaybe => _start = col - 5,
+            TokenType::BuiltinTypeNone => _start = col - 4,
+            TokenType::BuiltinTypeOption => _start = col - 6,
+            TokenType::BuiltinTypeSet => _start = col - 3,
+            TokenType::BuiltinTypeString => _start = col - 6,
+
+            // Special
+            TokenType::SpecialTypeSelf => _start = col - 4,
 
             // len=unknown
             TokenType::Comment(text)
@@ -1230,6 +1245,7 @@ impl<'a> Lexer<'a> {
             "lazy" => self.push_token(TokenType::KwLazy, pos, line, col),
             "let" => self.push_token(TokenType::KwLet, pos, line, col),
             "match" => self.push_token(TokenType::KwMatch, pos, line, col),
+            "primitive" => self.push_token(TokenType::KwPrimitive, pos, line, col),
             "return" => self.push_token(TokenType::KwReturn, pos, line, col),
             "self" => self.push_token(TokenType::KwSelf, pos, line, col),
             "struct" => self.push_token(TokenType::KwStruct, pos, line, col),
@@ -1257,29 +1273,33 @@ impl<'a> Lexer<'a> {
             // Primitives
             "bool" => self.push_token(TokenType::PrBool, pos, line, col),
             "byte" => self.push_token(TokenType::PrByte, pos, line, col),
-            "str" => self.push_token(TokenType::PrStr, pos, line, col),
-            "string" => self.push_token(TokenType::PrString, pos, line, col),
-            "int" => self.push_token(TokenType::PrInt32, pos, line, col),
-            "int8" => self.push_token(TokenType::PrInt8, pos, line, col),
-            "int16" => self.push_token(TokenType::PrInt16, pos, line, col),
-            "int32" => self.push_token(TokenType::PrInt32, pos, line, col),
-            "int64" => self.push_token(TokenType::PrInt64, pos, line, col),
-            "uint" => self.push_token(TokenType::PrUInt32, pos, line, col),
-            "uint8" => self.push_token(TokenType::PrUInt8, pos, line, col),
-            "uint16" => self.push_token(TokenType::PrUInt16, pos, line, col),
-            "uint32" => self.push_token(TokenType::PrUInt32, pos, line, col),
-            "uint64" => self.push_token(TokenType::PrUInt64, pos, line, col),
+            "char" => self.push_token(TokenType::PrChar, pos, line, col),
             "float" => self.push_token(TokenType::PrFloat32, pos, line, col),
             "float32" => self.push_token(TokenType::PrFloat32, pos, line, col),
             "float64" => self.push_token(TokenType::PrFloat64, pos, line, col),
+            "int" => self.push_token(TokenType::PrInt32, pos, line, col),
+            "int16" => self.push_token(TokenType::PrInt16, pos, line, col),
+            "int32" => self.push_token(TokenType::PrInt32, pos, line, col),
+            "int64" => self.push_token(TokenType::PrInt64, pos, line, col),
+            "int8" => self.push_token(TokenType::PrInt8, pos, line, col),
+            "str" => self.push_token(TokenType::PrStr, pos, line, col),
+            "uint" => self.push_token(TokenType::PrUInt32, pos, line, col),
+            "uint16" => self.push_token(TokenType::PrUInt16, pos, line, col),
+            "uint32" => self.push_token(TokenType::PrUInt32, pos, line, col),
+            "uint64" => self.push_token(TokenType::PrUInt64, pos, line, col),
+            "uint8" => self.push_token(TokenType::PrUInt8, pos, line, col),
 
             // BuiltIn types
-            "List" => self.push_token(TokenType::BuiltInTypeList, pos, line, col),
-            "Map" => self.push_token(TokenType::BuiltInTypeMap, pos, line, col),
-            "Maybe" => self.push_token(TokenType::BuiltInTypeMaybe, pos, line, col),
-            "Option" => self.push_token(TokenType::BuiltInTypeOption, pos, line, col),
-            "Self" => self.push_token(TokenType::BuiltInTypeSelf, pos, line, col),
-            "Set" => self.push_token(TokenType::BuiltInTypeSet, pos, line, col),
+            "List" => self.push_token(TokenType::BuiltinTypeList, pos, line, col),
+            "Map" => self.push_token(TokenType::BuiltinTypeMap, pos, line, col),
+            "Maybe" => self.push_token(TokenType::BuiltinTypeMaybe, pos, line, col),
+            "None" => self.push_token(TokenType::BuiltinTypeNone, pos, line, col),
+            "Option" => self.push_token(TokenType::BuiltinTypeOption, pos, line, col),
+            "Set" => self.push_token(TokenType::BuiltinTypeSet, pos, line, col),
+
+            // SpecialType
+            "Self" => self.push_token(TokenType::SpecialTypeSelf, pos, line, col),
+
             // Pattern
             // "" => self.push_token(Token::..., pos, line, col),
             _ => {
