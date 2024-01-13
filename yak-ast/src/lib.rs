@@ -80,7 +80,7 @@ pub struct Parsed {
 
 #[derive(Debug)]
 pub struct Ast {
-    file: Option<PathBuf>,
+    files: Vec<PathBuf>,
     stack: Vec<Token>,
     pub parsed: Parsed,
 }
@@ -99,7 +99,7 @@ impl Ast {
         let mut lexer = Lexer::from_source(&src);
         lexer.parse();
         Ok(Ast {
-            file: Some(file),
+            files: vec![file],
             stack: lexer.tokens_as_stack(),
             parsed: Parsed::default(),
         })
@@ -108,7 +108,7 @@ impl Ast {
         let mut lexer = Lexer::from_source(source);
         lexer.parse();
         Ast {
-            file: None,
+            files: vec![],
             stack: lexer.tokens_as_stack(),
             parsed: Parsed::default(),
         }
@@ -131,7 +131,7 @@ impl Ast {
             .with_context(|| format!("unable to read file: {}", &file.display()))?;
         let mut lexer = Lexer::from_source(&src);
         lexer.parse();
-        self.file = Some(file);
+        self.files.push(file);
         self.stack = lexer.tokens_as_stack();
         self.parse()?;
         Ok(())
@@ -530,11 +530,13 @@ impl PackageStmt {
     pub fn into_yak_package(
         self,
         pkg_root: bool,
+        pkg_as_pkg_id: Option<String>,
         pkg_local_path: String,
         pkg_remote_path: Option<String>,
     ) -> Result<YakPackage> {
         let mut pkg = YakPackage::default();
         pkg.pkg_root = pkg_root;
+        pkg.pkg_as_pkg_id = pkg_as_pkg_id;
         pkg.pkg_id = clean_quotes(self.package_id);
         pkg.pkg_description = clean_quotes(self.description);
         pkg.pkg_version = YakVersion {

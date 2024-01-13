@@ -2,10 +2,10 @@ use super::name::Name;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct FunctionId {
-    pkg_name: String,
-    struct_name: Option<String>,
-    func_name: String,
-    is_main: bool,
+    pub pkg_name: String,
+    pub struct_name: Option<String>,
+    pub func_name: String,
+    pub is_main: bool,
 }
 
 impl FunctionId {

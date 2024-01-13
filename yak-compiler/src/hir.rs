@@ -22,6 +22,7 @@ struct Opts {
 
 #[derive(Debug, Default, Clone, PartialEq)]
 pub struct ModuleDef {
+    pub pkg_root: bool,
     pub module_id: ModuleId,
     pub struct_defs: Vec<StructDef>,
     pub function_defs: Vec<FunctionDef>,
@@ -152,19 +153,25 @@ pub struct ImplTraitDef {}
 
 // High-level IR
 // Converts ast -> IR
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone, PartialEq)]
 pub struct Hir {
     pub modules: Vec<ModuleDef>,
 }
 
 impl Hir {
-    pub fn from_ast(ast: &Ast) -> Result<Hir> {
+    pub fn from_ast(&mut self, pkg_root: bool, as_pkg_id: Option<String>, ast: &Ast) -> Result<()> {
         // get package stmt
         let pkg = &ast.parsed.package;
         // create module
         let pkg_id = clean_quotes(pkg.package_id.clone());
+        let as_pkg_name = if let Some(as_pkg_id) = as_pkg_id {
+            Some(as_pkg_id.clone())
+        } else {
+            Some(pkg_id.clone())
+        };
         let mut module = ModuleDef {
-            module_id: ModuleId::new(pkg_id.clone()),
+            pkg_root: pkg_root,
+            module_id: ModuleId::new(pkg_id.clone(), as_pkg_name.clone()),
             ..Default::default()
         };
         // struct defs
@@ -172,7 +179,7 @@ impl Hir {
             &mut module.struct_defs,
             |acc, stmt| -> Result<&mut Vec<StructDef>> {
                 let opts = Opts {
-                    pkg_id: Some(pkg_id.clone()),
+                    pkg_id: as_pkg_name.clone(),
                     ..Default::default()
                 };
                 let def = StructDef::lower(stmt, opts)?;
@@ -186,7 +193,7 @@ impl Hir {
             |acc, stmt| -> Result<&mut Vec<FunctionDef>> {
                 // top-level functions don't have a struct name
                 let opts = Opts {
-                    pkg_id: Some(pkg_id.clone()),
+                    pkg_id: as_pkg_name.clone(),
                     ..Default::default()
                 };
                 let def = FunctionDef::lower(stmt, opts)?;
@@ -199,7 +206,7 @@ impl Hir {
             &mut module.constant_defs,
             |acc, stmt| -> Result<&mut Vec<ConstantDef>> {
                 let opts = Opts {
-                    pkg_id: Some(pkg_id.clone()),
+                    pkg_id: as_pkg_name.clone(),
                     ..Default::default()
                 };
                 let const_def = ConstantDef::lower(stmt, opts)?;
@@ -208,9 +215,12 @@ impl Hir {
             },
         )?;
         // add module to hir
-        let mut hir = Hir::default();
-        hir.modules.push(module);
+        self.modules.push(module);
 
-        Ok(hir)
+        Ok(())
+    }
+
+    pub fn merge_modules(&mut self, hir: &Hir) {
+        self.modules.append(&mut hir.modules.clone());
     }
 }

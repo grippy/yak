@@ -12,6 +12,12 @@ pub(crate) struct BuildArgs {
 pub(crate) fn call(args: &BuildArgs) -> Result<()> {
     info!("build args: {:?}", args);
     let path = args.path.clone();
-    yak_pkg::build(path)?;
+    let build_args = yak_pkg::BuildArgs {
+        pkg_root: true,
+        pkg_as_pkg_id: None,
+        path: path,
+    };
+    let pkg = yak_pkg::build(build_args)?;
+    info!("{:#?}", &pkg);
     Ok(())
 }

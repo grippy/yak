@@ -1,3 +1,4 @@
+use crate::models::yak_home::YakHome;
 use crate::models::yak_version::YakVersion;
 use crate::utils::{download_file, normalize_path};
 use anyhow::Result;
@@ -8,7 +9,10 @@ use url::Url;
 #[derive(Debug, Default)]
 pub struct YakPackage {
     pub pkg_root: bool,
+    // pkg name
     pub pkg_id: String,
+    // pkg import as name
+    pub pkg_as_pkg_id: Option<String>,
     pub pkg_local_path: String,
     pub pkg_remote_path: Option<String>,
     pub pkg_version: YakVersion,
@@ -25,7 +29,7 @@ impl YakPackage {
     // returns a list of all remote dependency urls
     // - remote path + relative dep.path
     // - remote dep.path
-    pub fn get_remote_dep_urls(&mut self) -> Result<Vec<Url>> {
+    pub fn get_remote_dep_urls(&mut self) -> Result<Vec<(String, Url)>> {
         let mut urls = vec![];
         if self.pkg_remote_path.is_none() {
             return Ok(urls);
@@ -43,13 +47,37 @@ impl YakPackage {
             if pkg_dep.path.starts_with("http://") || pkg_dep.path.starts_with("https://") {
                 pkg_remote_url = Url::parse(&pkg_dep.path)?;
             }
-            urls.push(pkg_remote_url)
+            urls.push((pkg_dep.pkg_id.clone(), pkg_remote_url))
         }
         Ok(urls)
     }
 
-    pub fn get_local_dep_paths(&mut self) -> Result<Vec<PathBuf>> {
-        Ok(vec![])
+    // `get_local_dep_paths` assumes all remote packages have already been downloaded
+    // and returns all deps as if the src exists locally
+    pub fn get_local_dep_paths(&mut self) -> Result<Vec<(String, PathBuf)>> {
+        let mut paths = vec![];
+
+        let yak_home = YakHome::default();
+        let yak_home_src_path = yak_home
+            .get_home_version_src_dir()
+            .into_os_string()
+            .into_string()
+            .unwrap();
+        for pkg_dep in self.pkg_dependencies.iter() {
+            // convert remote paths to local ones...
+            // this assumes the pkg was already downloaded
+            let mut pkg_local_path = self.pkg_local_path.clone();
+            let mut pkg_dep_path = pkg_dep.path.clone();
+            if pkg_dep_path.starts_with("http://") || pkg_dep_path.starts_with("https://") {
+                pkg_local_path = yak_home_src_path.clone();
+                pkg_dep_path = pkg_dep_path.replace("http://", "");
+                pkg_dep_path = pkg_dep_path.replace("https://", "");
+            }
+            let dep_path = PathBuf::from(format!("{}/{}", &pkg_local_path, &pkg_dep_path));
+            let src_path = normalize_path(dep_path.as_path());
+            paths.push((pkg_dep.pkg_id.clone(), src_path));
+        }
+        Ok(paths)
     }
 
     // iterate all files and cache
