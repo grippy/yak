@@ -96,7 +96,7 @@ let name: String = "value"
 
 ## Functions
 
-Function signatures are defined using the following syntax.
+Function signatures are defined using the following syntax. Function names are prefixed with colon.
 
 ### Static
 
@@ -108,13 +108,35 @@ fn :func_name { arg1: Type1 arg2: Type2 ... } ReturnType =>
   return some_value
 ```
 
-### Instance
+Function arguments are separated by spaces or newlines.
 
-Structs can implement instance methods.
+```rust
+fn :func_name {
+    arg1: Type1
+    arg2: Type2
+  } =>
+    let x = "hello"
+    ...
+```
+
+### Instances
+
+Structs can implement instance methods. They just need to define a `self` using the following syntax:
 
 ```rust
 fn :func_name self {} =>
   ...
+```
+
+### Invocation
+
+Calling functions must include argument names and can be unordered.
+
+```rust
+let x = :func_name {
+    arg1: "some"
+    arg2: "value"
+  }
 ```
 
 ### Rules
