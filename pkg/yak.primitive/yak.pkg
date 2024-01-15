@@ -1,5 +1,5 @@
 package     "yak.primitive"
-description "Yak primitive type declarations"
+description "Yak primitive type declarations. Primordial soup."
 files {
   "./src/types.yak"
 }

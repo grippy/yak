@@ -28,6 +28,15 @@ pub struct ModuleDef {
     pub function_defs: Vec<FunctionDef>,
     pub constant_defs: Vec<ConstantDef>,
 }
+
+impl ModuleDef {
+    pub fn fn_main(&self) -> Option<&FunctionDef> {
+        self.function_defs
+            .iter()
+            .find(|func_def| func_def.function_id.is_main)
+    }
+}
+
 struct Block {}
 struct If {}
 struct Condition {}

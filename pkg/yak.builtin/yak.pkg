@@ -1,5 +1,5 @@
 package     "yak.builtin"
-description "Yak builtin types and functions"
+description "Yak builtin types and functions."
 files {
   "./src/types/List.yak"
   "./src/types/Map.yak"

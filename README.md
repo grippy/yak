@@ -11,29 +11,31 @@ See the [syntax defined here](./SYNTAX.md).
 1. Lexer
     - Done: Token parsing
     - Needs work:
-        - Parse `IdTrait`
-        - Package prefixed variable parsing...
-            - `my.pkg.variable1`
-            - `my.pkg.Type1`
-            - `my.pkg:func1`
         - Source code file, line, and column location
 2. AST Parsing
     - See [yak-ast TODO](./yak-ast/TODO.md) for done and needs work.
     - TBD: AST Validation
 3. AST -> IR
-    - TBD
+    - Prototyped:
+        - Modules
+        - Functions
+        - Structs
+        - Constants
 5. IR Validation
     - TBD: Type checks
 5. IR -> LLVM
-    - TBD
+    - Prototyped:
+        - Modules: generates module `.ll` files
+        - Functions (stubbed)
+        - Structs (stubbed)
+        - Constants (stubbed)
 6. Linking
-    - TBD
+    - Done: Links all `.ll` files and generates a package binary using `clang`
 
 # Unknowns
 
 This list is some of the big unknowns to figure out...
 
-- AST -> IR -> LLVM: what does each stage look like?
 - Memory management (gc vs lifetimes/borrow. Needs more research.)
 - Memory layouts (can we leverage Rust for this?)
 - String vs str: which one should we start with?
@@ -41,9 +43,9 @@ This list is some of the big unknowns to figure out...
 
 # Env Variables
 
-`YAK_HOME`: The path to use for the yak home directory.
-`YAK_LOG`: The loglevel to use for the yak-cli binary.
-`YAK_VERSION`: The yak version to use for the yak-cli tools.
+- `YAK_HOME`: The path to use for the yak home directory.
+- `YAK_LOG`: The loglevel to use for the yak-cli binary.
+- `YAK_VERSION`: The yak version to use for the yak-cli tools.
 
 ```
 # Define which yak version to use:
@@ -67,11 +69,11 @@ By default, it should look like this:
 
 # yak-cli
 
-The crude beginnings of a cli have been stubbed out to support building and getting remote code. (This needs more work to support resolving and building dependencies).
+The crude beginnings of a cli have been stubbed out to support building and getting packages.
 
 ## Build
 
-Build the `yak.pkg` file in the current directory:
+Build the `yak.pkg` file in the current directory and resolve dependencies:
 
 ```
 yak-cli build
@@ -82,6 +84,8 @@ Or, build some other local package relative to the current directory:
 ```
 yak-cli build ../my/pkg1
 ```
+
+Build artifacts should end up in the `{pkg}/target/module` and `{pkg}/target/bin` or `{pkg}/target/lib` directories.
 
 ## Get
 
